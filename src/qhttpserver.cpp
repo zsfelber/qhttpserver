@@ -34,10 +34,15 @@ template <typename N>
 inline N max_inl(N n1, N n2) {
     return (n1 < n2) ? n2 : n1;
 }
+inline QString s(QTcpSocket const & socket) {
+    QString s;
+    s = socket.peerName()+" "+socket.peerAddress().toString()+":"+socket.peerPort();
+    return s;
+}
 
 
 QMtTcpEntry::QMtTcpEntry(QMtTcpServer *parent, QTcpSocket * socket) :
-        parent(parent), started(false), eventLoop(0) {
+        parent(parent), started(false), eventLoop(0), exited(0) {
 
     if (QThread::currentThread() != mainThread) {
         qCritical()<<"current thread : "<<QThread::currentThread()<<":"<<QThread::currentThreadId()<<
@@ -45,7 +50,7 @@ QMtTcpEntry::QMtTcpEntry(QMtTcpServer *parent, QTcpSocket * socket) :
         throw std::exception();
     }
 
-    pendingSockets.append(socket);
+    add0(socket);
 }
 QMtTcpEntry::~QMtTcpEntry() {
 }
@@ -57,37 +62,36 @@ void QMtTcpEntry::run() {
         throw std::exception();
     }
 
+    QString ls;
+
     {
         QMutexLocker ___lock(&mutex);
         started = true;
 
-        QString ls;
-        for (auto socket : pendingSockets) {
+        for (auto socket : pending) {
             socket->moveToThread(QThread::currentThread());
-            ls += QString::number(socket->peerName()+" "+socket->peerAddress().toString()+":"+socket->peerPort())+", ";
+            ls += s(*socket)+", ";
         }
     }
 
-    if (ok) {
-        if (ls.length()) ls.remove(ls.length()-2, 2);
-        qDebug() << "Event loop started for client socket(s):" << ls;
+    if (ls.length()) ls.remove(ls.length()-2, 2);
+    qDebug() << "Event loop started for client socket(s):" << ls;
 
-        QEventLoop eventLoop;
-        this->eventLoop = &eventLoop;
-        eventLoop.exec();
-        this->eventLoop = 0;
+    QEventLoop eventLoop;
+    this->eventLoop = &eventLoop;
+    eventLoop.exec();
+    this->eventLoop = 0;
 
-        qDebug() << "Event loop finished:" << ls;
-    }
+    qDebug() << "Event loop finished:" << ls;
 
     parent->activeEntries.removeOne(this);
     deleteLater();
 }
 
-void QMtTcpEntry::stop() {
-    if (eventLoop) {
-        eventLoop->exit();
-    }
+void QMtTcpEntry::add0(QTcpSocket * socket) {
+
+    pending.append(socket);
+    connect(socket, SIGNAL(disconnected()), this, SLOT(checkStop()));
 }
 
 bool QMtTcpEntry::add(QTcpSocket * socket) {
@@ -97,7 +101,7 @@ bool QMtTcpEntry::add(QTcpSocket * socket) {
         throw std::exception();
     }
 
-    if (pendingSockets.size()>=parent->m_maxConnsPerThread) {
+    if (pending.size()>=parent->m_maxConnsPerThread) {
         return false;
     }
 
@@ -105,20 +109,42 @@ bool QMtTcpEntry::add(QTcpSocket * socket) {
     if (started) {
         return false;
     } else {
-        pendingSockets.append(socket);
+        add0(socket);
         return true;
     }
 }
 
-QTcpSocket * QMtTcpEntry::pop() {
+void QMtTcpEntry::accept(QTcpSocket * fstSocket) {
     if (QThread::currentThread() != mainThread) {
         qCritical()<<"current thread : "<<QThread::currentThread()<<":"<<QThread::currentThreadId()<<
             " != mainThread : "<<mainThread;
         throw std::exception();
     }
 
-    auto s1 = pendingSockets.first();
-    return s1.socket;
+    if (pending.size()) {
+        auto s1 = pending.first();
+        pending.pop_front();
+        accepted.push_back(s1);
+        if (s1 != fstSocket) {
+            qCritical()<<"accept()  error:: socket mismatch fstSocket : "<<s(*fstSocket)<<" vs s1:"<<s(*s1);
+            throw std::exception();
+        }
+    } else {
+        qCritical()<<"accept()  error:: empty : "<<s(*fstSocket);
+        throw std::exception();
+    }
+}
+
+void QMtTcpEntry::stop() {
+    if (eventLoop) {
+        eventLoop->exit();
+    }
+}
+
+void QMtTcpEntry::checkStop() {
+    if (++exited==accepted.size() && pending.empty()) {
+        stop();
+    }
 }
 
 /// Construct a new multithreaded TCP Server.
@@ -149,28 +175,32 @@ void QMtTcpServer::incomingConnection(qintptr socketDescriptor) {
         throw std::exception();
     }
 
-    auto socket = parent->createClientSocketPeer(socketDescriptor);
+    auto socket = createClientSocketPeer(socketDescriptor);
 
     if (socket) {
+
 
         int a = activeEntries.size();
 
         if (a <= m_prefThreads || m_maxThreads <= a) {
 
             auto e = new QMtTcpEntry(this, socket);
-            activeEntries.push(e);
+            activeEntries.push_back(e);
+            pendingSockets.push_back(new PendingSocket(e,socket));
             tpool.start(e);
 
         } else {
 
             for (auto e : activeEntries) {
                 if (e->add(socket)) {
+                    pendingSockets.push_back(new PendingSocket(e,socket));
                     return;
                 }
             }
 
             auto e = new QMtTcpEntry(this, socket);
-            activeEntries.push(e);
+            activeEntries.push_back(e);
+            pendingSockets.push_back(new PendingSocket(e,socket));
             tpool.start(e);
         }
 
@@ -189,9 +219,7 @@ QTcpSocket * QMtTcpServer::createClientSocketPeer(qintptr socketDescriptor) {
     // from there:
     QTcpSocket * clientPeer = new QTcpSocket();
 
-    // NOTE we ignore that pending client entries may be maxThreadConns times more, never mind
-    // it's good.
-    int sz = activeEntries.size();
+    int sz = pendingSockets.size();
 
     if (!clientPeer->setSocketDescriptor(socketDescriptor)
             //&& clientPeer->open(QTcpSocket::ReadWrite)
@@ -218,7 +246,7 @@ bool QMtTcpServer::hasPendingConnections() {
         throw std::exception();
     }
 
-    return activeEntries.size();
+    return pendingSockets.size();
 }
 
 QTcpSocket * QMtTcpServer::nextPendingConnection() {
@@ -228,13 +256,14 @@ QTcpSocket * QMtTcpServer::nextPendingConnection() {
         throw std::exception();
     }
 
-    for (auto e1 : activeEntries) {
-        auto s1 = e1->pop();
-        if (s1) {
-            return s1;
-        }
+    if (pendingSockets.size()) {
+        auto e1 = pendingSockets.first();
+        pendingSockets.pop_front();
+        e1->entry->accept(e1->socket);
+        return e1->socket;
+    } else {
+        return 0;
     }
-    return 0;
 }
 
 

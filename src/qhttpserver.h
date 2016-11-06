@@ -47,6 +47,14 @@ extern QThread * mainThread;
 
 class QMtTcpEntry;
 
+struct PendingSocket {
+    QMtTcpEntry * entry;
+    QTcpSocket * socket;
+    PendingSocket(QMtTcpEntry * entry, QTcpSocket * socket) : entry(entry), socket(socket) {
+
+    }
+};
+
 class QHTTPSERVER_API QMtTcpServer : public QTcpServer
 {
     friend class QMtTcpEntry;
@@ -54,6 +62,7 @@ class QHTTPSERVER_API QMtTcpServer : public QTcpServer
 
     QThreadPool tpool;
     QList<QMtTcpEntry*> activeEntries;
+    QList<PendingSocket*> pendingSockets;
     int m_maxThreads;
     int m_maxConnsPerThread;
     int m_prefThreads;
@@ -80,18 +89,27 @@ class QMtTcpEntry : QObject, QRunnable {
     Q_OBJECT
 
     QMtTcpServer *parent;
-    QList<QTcpSocket*> pendingSockets;
-    QList<QTcpSocket*> acceptedSockets;
+    QList<QTcpSocket*> pending;
+    QList<QTcpSocket*> accepted;
     QMutex mutex;
     bool started;
     QEventLoop * eventLoop;
+    int exited;
 
     QMtTcpEntry(QMtTcpServer *parent, QTcpSocket * socket);
     ~QMtTcpEntry();
 
     void run();
+    void add0(QTcpSocket * socket);
     bool add(QTcpSocket * socket);
-    QTcpSocket * pop();
+
+
+    void accept(QTcpSocket *);
+
+    void stop();
+
+private slots:
+    void checkStop();
 };
 
 
