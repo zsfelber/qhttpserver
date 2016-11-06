@@ -27,15 +27,17 @@
 #define QHTTPSERVER_VERSION_MINOR 1
 #define QHTTPSERVER_VERSION_PATCH 0
 
-#include "qhttpserverapi.h"
-#include "qhttpserverfwd.h"
-
 #include <QObject>
 #include <QHostAddress>
 #include <QThreadPool>
 #include <QTcpServer>
 #include <QMutex>
 #include <QMutexLocker>
+
+#include "safequeue.h"
+#include "qhttpserverapi.h"
+#include "qhttpserverfwd.h"
+#include "qhttpserverfwd.h"
 
 /// Maps status codes to string reason phrases
 extern QHash<int, QString> STATUS_CODES;
@@ -51,6 +53,7 @@ class QHTTPSERVER_API QMtTcpServer : public QTcpServer
 
     QThreadPool tpool;
     QList<QMtTcpEntry*> activeEntries;
+    SafeQueue<QTcpSocket*> pendingClients;
     int m_maxThreads;
     int m_prefConnsPerThread;
     int m_prefThreads;
@@ -60,6 +63,12 @@ public:
     /// Construct a new multithreaded TCP Server.
     /** @param parent Parent QObject for the server. */
     QMtTcpServer(QObject *parent = 0, int maxThreads=1, int prefConnsPerThread=10);
+
+    inline bool hasPendingConnections() {
+        return pendingClients.size();
+    }
+
+    QTcpSocket * nextPendingConnection();
 
 protected:
 

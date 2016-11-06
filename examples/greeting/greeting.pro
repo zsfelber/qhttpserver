@@ -3,7 +3,7 @@ TARGET = greeting
 QT += network
 QT -= gui
 
-CONFIG += debug
+CONFIG += debug c++11
 
 INCLUDEPATH += ../../src
 LIBS += -L../../lib

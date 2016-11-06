@@ -43,17 +43,22 @@ QMtTcpEntry::QMtTcpEntry(QMtTcpServer *parent, qintptr socketDescriptor) :
 
 QMtTcpEntry::~QMtTcpEntry() {
     if (QThread::currentThread() != mainThread) {
+        qCritical()<<"current thread : "<<QThread::currentThread()<<":"<<QThread::currentThreadId()<<
+            " != mainThread : "<<mainThread;
         throw std::exception();
     }
     parent->activeEntries.removeOne(this);
 }
 
 void QMtTcpEntry::run() {
-    QMutexLocker ___lock(&mutex);
-    for (auto sd : socketDescriptors) {
-        parent->defaultIncomingConnection(sd);
+    {
+        QMutexLocker ___lock(&mutex);
+        for (auto sd : socketDescriptors) {
+            parent->defaultIncomingConnection(sd);
+        }
+        finished = true;
     }
-    finished = true;
+    moveToThread(mainThread);
     deleteLater();
 }
 bool QMtTcpEntry::add(qintptr socketDescriptor) {
@@ -74,6 +79,8 @@ QMtTcpServer::QMtTcpServer(QObject *parent, int maxThreads, int prefConnsPerThre
     m_prefThreads(max_inl(1,maxThreads/prefConnsPerThread)), m_current(0)
 {
     if (QThread::currentThread() != mainThread) {
+        qCritical()<<"current thread : "<<QThread::currentThread()<<":"<<QThread::currentThreadId()<<
+            " != mainThread : "<<mainThread;
         throw std::exception();
     }
     tpool.setMaxThreadCount(maxThreads);
@@ -81,6 +88,8 @@ QMtTcpServer::QMtTcpServer(QObject *parent, int maxThreads, int prefConnsPerThre
 
 void QMtTcpServer::incomingConnection(qintptr socketDescriptor) {
     if (QThread::currentThread() != mainThread) {
+        qCritical()<<"current thread : "<<QThread::currentThread()<<":"<<QThread::currentThreadId()<<
+            " != mainThread : "<<mainThread;
         throw std::exception();
     }
     int a = activeEntries.size();
@@ -89,20 +98,36 @@ void QMtTcpServer::incomingConnection(qintptr socketDescriptor) {
         activeEntries.append(e);
         tpool.start(e);
     } else {
-        bool fndActive;
-        do {
+
+        for (int i = activeEntries.size(); i; --i) {
             m_current=(m_current+1)%activeEntries.size();
             auto e = activeEntries[m_current];
-            fndActive = e->add(socketDescriptor);
-        } while (!fndActive);
+            if (e->add(socketDescriptor)) {
+                return;
+            }
+        }
+
+        auto e = new QMtTcpEntry(this, socketDescriptor);
+        activeEntries.append(e);
+        tpool.start(e);
     }
 }
 
 void QMtTcpServer::defaultIncomingConnection(qintptr socketDescriptor) {
     if (QThread::currentThread() == mainThread) {
+        qCritical()<<"current thread : "<<QThread::currentThread()<<":"<<QThread::currentThreadId()<<
+            " == mainThread : "<<mainThread;
         throw std::exception();
     }
-    QTcpServer::incomingConnection(socketDescriptor);
+    QTcpSocket * clientPeer = new QTcpSocket();
+    clientPeer->setSocketDescriptor(socketDescriptor);
+    pendingClients.push(clientPeer);
+}
+
+QTcpSocket * QMtTcpServer::nextPendingConnection() {
+    QTcpSocket * sock;
+    pendingClients.pop(sock);
+    return sock;
 }
 
 

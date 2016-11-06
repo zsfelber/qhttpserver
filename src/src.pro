@@ -24,7 +24,8 @@ PRIVATE_HEADERS += $$QHTTPSERVER_BASE/http-parser/http_parser.h qhttpconnection.
 
 PUBLIC_HEADERS += qhttpserver.h qhttprequest.h qhttpresponse.h qhttpserverapi.h qhttpserverfwd.h
 
-HEADERS = $$PRIVATE_HEADERS $$PUBLIC_HEADERS
+HEADERS = $$PRIVATE_HEADERS $$PUBLIC_HEADERS \
+    safequeue.h
 SOURCES = *.cpp $$QHTTPSERVER_BASE/http-parser/http_parser.c
 
 OBJECTS_DIR = $$QHTTPSERVER_BASE/build
