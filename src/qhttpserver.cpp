@@ -94,7 +94,7 @@ QHttpServer::~QHttpServer()
 {
 }
 
-void QHttpServer::newConnection()
+void QHttpServer::_newConnection()
 {
     Q_ASSERT(m_tcpServer);
 
@@ -103,6 +103,7 @@ void QHttpServer::newConnection()
             new QHttpConnection(m_tcpServer->nextPendingConnection(), this);
         connect(connection, SIGNAL(newRequest(QHttpRequest *, QHttpResponse *)), this,
                 SIGNAL(newRequest(QHttpRequest *, QHttpResponse *)));
+        emit newConnection(connection);
     }
 }
 
@@ -113,7 +114,7 @@ bool QHttpServer::listen(const QHostAddress &address, quint16 port)
 
     bool couldBindToPort = m_tcpServer->listen(address, port);
     if (couldBindToPort) {
-        connect(m_tcpServer, SIGNAL(newConnection()), this, SLOT(newConnection()));
+        connect(m_tcpServer, SIGNAL(newConnection()), this, SLOT(_newConnection()));
     } else {
         delete m_tcpServer;
         m_tcpServer = NULL;

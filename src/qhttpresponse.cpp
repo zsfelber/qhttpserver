@@ -146,7 +146,7 @@ void QHttpResponse::writeHead(StatusCode statusCode)
     writeHead(static_cast<int>(statusCode));
 }
 
-void QHttpResponse::write(const QByteArray &data)
+void QHttpResponse::write(const QByteArray &data, int offset, int len)
 {
     if (m_finished) {
         qWarning() << "QHttpResponse::write() Cannot write body after response has finished.";
@@ -158,7 +158,7 @@ void QHttpResponse::write(const QByteArray &data)
         return;
     }
 
-    m_connection->write(data);
+    m_connection->write(data, offset, len);
 }
 
 void QHttpResponse::flush()

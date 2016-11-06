@@ -96,6 +96,10 @@ public:
         HTTP_PURGE
     };
 
+    inline QHttpConnection const * connection() const {
+        return m_connection;
+    }
+
     /// The method used for the request.
     HttpMethod method() const;
 

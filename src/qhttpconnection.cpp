@@ -110,9 +110,9 @@ void QHttpConnection::parseRequest()
     }
 }
 
-void QHttpConnection::write(const QByteArray &data)
+void QHttpConnection::write(const QByteArray &data, int offset, int len)
 {
-    m_socket->write(data);
+    m_socket->write(data.constData()+offset, len>=0?len:(data.size()-offset));
     m_transmitLen += data.size();
 }
 

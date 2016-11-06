@@ -38,9 +38,11 @@ public:
     QHttpConnection(QTcpSocket *socket, QObject *parent = 0);
     virtual ~QHttpConnection();
 
-    void write(const QByteArray &data);
+    void write(const QByteArray &data, int offset=0, int len=-1);
     void flush();
     void waitForBytesWritten();
+
+    inline QTcpSocket const *socket() const { return m_socket; }
 
 Q_SIGNALS:
     void newRequest(QHttpRequest *, QHttpResponse *);
