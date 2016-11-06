@@ -111,8 +111,8 @@ public:
     }
     inline bool add(QTcpSocketL * socket) {
         if (QThread::currentThread() != mainThread) {
-            qCritical()<<"current thread : "<<QThread::currentThread()<<":"<<QThread::currentThreadId()<<
-                " != mainThread : "<<mainThread;
+            qCritical()<<"current thread : "<<(void*)QThread::currentThread()<<":"<<QThread::currentThreadId()<<
+                " != mainThread : "<<(void*)mainThread;
             throw std::exception();
         }
         if (connections < max) {
@@ -129,8 +129,8 @@ private slots:
     inline void closed1(QTcpSocketL * socket) {
 
         if (QThread::currentThread() != mainThread) {
-            qCritical()<<"current thread : "<<QThread::currentThread()<<":"<<QThread::currentThreadId()<<
-                " != mainThread : "<<mainThread;
+            qCritical()<<"current thread : "<<(void*)QThread::currentThread()<<":"<<QThread::currentThreadId()<<
+                " != mainThread : "<<(void*)mainThread;
             throw std::exception();
         }
         --connections;
