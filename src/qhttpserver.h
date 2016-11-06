@@ -31,6 +31,7 @@
 #include <QHostAddress>
 #include <QThreadPool>
 #include <QTcpServer>
+#include <QTcpSocket>
 #include <QMutex>
 #include <QMutexLocker>
 #include <QEventLoop>
@@ -45,23 +46,22 @@ extern QHash<int, QString> STATUS_CODES;
 extern QThread * mainThread;
 
 
-class QMtTcpEntry;
+class QTcpClientPeerThread;
 
 struct PendingSocket {
-    QMtTcpEntry * entry;
+    QTcpClientPeerThread * thread;
     QTcpSocket * socket;
-    PendingSocket(QMtTcpEntry * entry, QTcpSocket * socket) : entry(entry), socket(socket) {
+    PendingSocket(QTcpClientPeerThread * thread, QTcpSocket * socket) : thread(thread), socket(socket) {
 
     }
 };
 
 class QHTTPSERVER_API QMtTcpServer : public QTcpServer
 {
-    friend class QMtTcpEntry;
+    friend class QTcpClientPeerThread;
     Q_OBJECT
 
-    QThreadPool tpool;
-    QList<QMtTcpEntry*> activeEntries;
+    QList<QTcpClientPeerThread*> activeThreads;
     QList<PendingSocket*> pendingSockets;
     int m_maxThreads;
     int m_maxConnsPerThread;
@@ -84,32 +84,39 @@ protected:
 
 };
 
-class QMtTcpEntry : QObject, QRunnable {
-    friend class QMtTcpServer;
-    Q_OBJECT
+class QTcpClientPeerThread : public QThread {
+Q_OBJECT
 
-    QMtTcpServer *parent;
-    QList<QTcpSocket*> pending;
-    QList<QTcpSocket*> accepted;
-    QMutex mutex;
-    bool started;
-    QEventLoop * eventLoop;
-    int exited;
+    int max;
+    int connections;
 
-    QMtTcpEntry(QMtTcpServer *parent, QTcpSocket * socket);
-    ~QMtTcpEntry();
-
-    void run();
-    void add0(QTcpSocket * socket);
-    bool add(QTcpSocket * socket);
-
-
-    void accept(QTcpSocket *);
-
-    void stop();
-
+public:
+    QTcpClientPeerThread(int max) : max(max), connections(0) {
+    }
+    inline bool add(QTcpSocket * socket) {
+        if (QThread::currentThread() != mainThread) {
+            qCritical()<<"current thread : "<<QThread::currentThread()<<":"<<QThread::currentThreadId()<<
+                " != mainThread : "<<mainThread;
+            throw std::exception();
+        }
+        if (connections < max) {
+            ++connections;
+            connect(socket, &QTcpSocket::aboutToClose, this, &QTcpClientPeerThread::closed1);
+            return true;
+        } else {
+            return false;
+        }
+    }
 private slots:
-    void checkStop();
+
+    inline void closed1() {
+        if (QThread::currentThread() != mainThread) {
+            qCritical()<<"current thread : "<<QThread::currentThread()<<":"<<QThread::currentThreadId()<<
+                " != mainThread : "<<mainThread;
+            throw std::exception();
+        }
+        --connections;
+    }
 };
 
 

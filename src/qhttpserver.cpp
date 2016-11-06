@@ -36,116 +36,12 @@ inline N max_inl(N n1, N n2) {
 }
 inline QString s(QTcpSocket const & socket) {
     QString s;
-    s = socket.peerName()+" "+socket.peerAddress().toString()+":"+socket.peerPort();
+    s = socket.peerName()+" "+socket.peerAddress().toString()+":"+QString::number(socket.peerPort())+
+            "#"+QString::number((std::ptrdiff_t)socket.thread(),16);
     return s;
 }
 
 
-QMtTcpEntry::QMtTcpEntry(QMtTcpServer *parent, QTcpSocket * socket) :
-        parent(parent), started(false), eventLoop(0), exited(0) {
-
-    if (QThread::currentThread() != mainThread) {
-        qCritical()<<"current thread : "<<QThread::currentThread()<<":"<<QThread::currentThreadId()<<
-            " != mainThread : "<<mainThread;
-        throw std::exception();
-    }
-
-    add0(socket);
-}
-QMtTcpEntry::~QMtTcpEntry() {
-}
-
-void QMtTcpEntry::run() {
-    if (QThread::currentThread() == mainThread) {
-        qCritical()<<"current thread : "<<QThread::currentThread()<<":"<<QThread::currentThreadId()<<
-            " == mainThread : "<<mainThread;
-        throw std::exception();
-    }
-
-    QString ls;
-
-    {
-        QMutexLocker ___lock(&mutex);
-        started = true;
-
-        for (auto socket : pending) {
-            socket->moveToThread(QThread::currentThread());
-            ls += s(*socket)+", ";
-        }
-    }
-
-    if (ls.length()) ls.remove(ls.length()-2, 2);
-    qDebug() << "Event loop started for client socket(s):" << ls;
-
-    QEventLoop eventLoop;
-    this->eventLoop = &eventLoop;
-    eventLoop.exec();
-    this->eventLoop = 0;
-
-    qDebug() << "Event loop finished:" << ls;
-
-    parent->activeEntries.removeOne(this);
-    deleteLater();
-}
-
-void QMtTcpEntry::add0(QTcpSocket * socket) {
-
-    pending.append(socket);
-    connect(socket, SIGNAL(disconnected()), this, SLOT(checkStop()));
-}
-
-bool QMtTcpEntry::add(QTcpSocket * socket) {
-    if (QThread::currentThread() != mainThread) {
-        qCritical()<<"current thread : "<<QThread::currentThread()<<":"<<QThread::currentThreadId()<<
-            " != mainThread : "<<mainThread;
-        throw std::exception();
-    }
-
-    if (pending.size()>=parent->m_maxConnsPerThread) {
-        return false;
-    }
-
-    QMutexLocker ___lock(&mutex);
-    if (started) {
-        return false;
-    } else {
-        add0(socket);
-        return true;
-    }
-}
-
-void QMtTcpEntry::accept(QTcpSocket * fstSocket) {
-    if (QThread::currentThread() != mainThread) {
-        qCritical()<<"current thread : "<<QThread::currentThread()<<":"<<QThread::currentThreadId()<<
-            " != mainThread : "<<mainThread;
-        throw std::exception();
-    }
-
-    if (pending.size()) {
-        auto s1 = pending.first();
-        pending.pop_front();
-        accepted.push_back(s1);
-        if (s1 != fstSocket) {
-            qCritical()<<"accept()  error:: socket mismatch fstSocket : "<<s(*fstSocket)<<" vs s1:"<<s(*s1);
-            throw std::exception();
-        }
-    } else {
-        qCritical()<<"accept()  error:: empty : "<<s(*fstSocket);
-        throw std::exception();
-    }
-}
-
-void QMtTcpEntry::stop() {
-    if (eventLoop) {
-        eventLoop->exit();
-    }
-}
-
-void QMtTcpEntry::checkStop() {
-    if (++exited==accepted.size() && pending.empty()) {
-        stop();
-    }
-}
 
 /// Construct a new multithreaded TCP Server.
 /** @param parent Parent QObject for the server. */
@@ -160,7 +56,6 @@ QMtTcpServer::QMtTcpServer(QObject *parent, int maxThreads, int maxConnsPerThrea
         throw std::exception();
     }
     setMaxPendingConnections(maxPendingConnections);
-    tpool.setMaxThreadCount(maxThreads);
 }
 
 void QMtTcpServer::incomingConnection(qintptr socketDescriptor) {
@@ -180,30 +75,37 @@ void QMtTcpServer::incomingConnection(qintptr socketDescriptor) {
     if (socket) {
 
 
-        int a = activeEntries.size();
+        int a = activeThreads.size();
 
-        if (a <= m_prefThreads || m_maxThreads <= a) {
+        if (a <= m_prefThreads) {
 
-            auto e = new QMtTcpEntry(this, socket);
-            activeEntries.push_back(e);
-            pendingSockets.push_back(new PendingSocket(e,socket));
-            tpool.start(e);
 
         } else {
 
-            for (auto e : activeEntries) {
-                if (e->add(socket)) {
-                    pendingSockets.push_back(new PendingSocket(e,socket));
+            for (auto thread : activeThreads) {
+                if (thread->add(socket)) {
+                    pendingSockets.push_back(new PendingSocket(thread, socket));
+                    socket->moveToThread(thread);
                     return;
                 }
             }
 
-            auto e = new QMtTcpEntry(this, socket);
-            activeEntries.push_back(e);
-            pendingSockets.push_back(new PendingSocket(e,socket));
-            tpool.start(e);
+            if (m_maxThreads <= a) {
+                qWarning()<<"Too many active threads, all are full (#"<<a<<"/"<<m_maxThreads<<") : "<<socketDescriptor;
+                acceptError(QAbstractSocket::ConnectionRefusedError);
+                socket->abort();
+                return;
+            }
+
         }
 
+        auto thread = new QTcpClientPeerThread(m_maxConnsPerThread);
+        thread->add(socket);
+        activeThreads.push_back(thread);
+        pendingSockets.push_back(new PendingSocket(thread,socket));
+        socket->moveToThread(thread);
+
+        thread->start();
     }
 }
 
@@ -214,7 +116,7 @@ QTcpSocket * QMtTcpServer::createClientSocketPeer(qintptr socketDescriptor) {
         throw std::exception();
     }
 
-    // Affinity is (will set later to) QMtTcpEntry's QThreadPool (tpool) thread,
+    // Affinity is (will set later to) QTcpClientPeerThread (thread),
     // so event loop is running and messaging socket (thus whole object branch)
     // from there:
     QTcpSocket * clientPeer = new QTcpSocket();
@@ -229,7 +131,7 @@ QTcpSocket * QMtTcpServer::createClientSocketPeer(qintptr socketDescriptor) {
         clientPeer->abort();
         clientPeer = 0;
     } else if (maxPendingConnections()<=sz) {
-        qCritical()<<"Too many pending connections (#"<<sz<<"/"<<maxPendingConnections()<<") : "<<socketDescriptor;
+        qWarning()<<"Too many pending connections (#"<<sz<<"/"<<maxPendingConnections()<<") : "<<socketDescriptor;
         acceptError(QAbstractSocket::ConnectionRefusedError);
         clientPeer->abort();
         clientPeer = 0;
@@ -259,8 +161,9 @@ QTcpSocket * QMtTcpServer::nextPendingConnection() {
     if (pendingSockets.size()) {
         auto e1 = pendingSockets.first();
         pendingSockets.pop_front();
-        e1->entry->accept(e1->socket);
-        return e1->socket;
+        auto r = e1->socket;
+        delete e1;
+        return r;
     } else {
         return 0;
     }
