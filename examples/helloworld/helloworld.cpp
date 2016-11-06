@@ -7,6 +7,7 @@
 #include <qhttpresponse.h>
 
 /// HelloWorld
+QThread *mainThread;
 
 HelloWorld::HelloWorld()
 {
@@ -31,6 +32,7 @@ void HelloWorld::handleRequest(QHttpRequest *req, QHttpResponse *resp)
 
 int main(int argc, char **argv)
 {
+    mainThread = QThread::currentThread();
     QCoreApplication app(argc, argv);
     HelloWorld hello;
     app.exec();

@@ -32,9 +32,60 @@
 
 #include <QObject>
 #include <QHostAddress>
+#include <QThreadPool>
+#include <QTcpServer>
+#include <QMutex>
+#include <QMutexLocker>
 
 /// Maps status codes to string reason phrases
 extern QHash<int, QString> STATUS_CODES;
+extern QThread * mainThread;
+
+
+class QMtTcpEntry;
+
+class QHTTPSERVER_API QMtTcpServer : public QTcpServer
+{
+    friend class QMtTcpEntry;
+    Q_OBJECT
+
+    QThreadPool tpool;
+    QList<QMtTcpEntry*> activeEntries;
+    int m_maxThreads;
+    int m_prefConnsPerThread;
+    int m_prefThreads;
+    int m_current;
+
+public:
+    /// Construct a new multithreaded TCP Server.
+    /** @param parent Parent QObject for the server. */
+    QMtTcpServer(QObject *parent = 0, int maxThreads=1, int prefConnsPerThread=10);
+
+protected:
+
+    void incomingConnection(qintptr socketDescriptor);
+
+    void defaultIncomingConnection(qintptr socketDescriptor);
+
+};
+
+class QMtTcpEntry : QObject, QRunnable {
+    friend class QMtTcpServer;
+    Q_OBJECT
+
+    QMtTcpServer *parent;
+    QList<qintptr> socketDescriptors;
+    QMutex mutex;
+    bool finished;
+
+    QMtTcpEntry(QMtTcpServer *parent, qintptr socketDescriptor);
+
+    ~QMtTcpEntry();
+
+    void run();
+    bool add(qintptr socketDescriptor);
+};
+
 
 /// The QHttpServer class forms the basis of the %QHttpServer
 /// project. It is a fast, non-blocking HTTP server.
@@ -60,7 +111,7 @@ class QHTTPSERVER_API QHttpServer : public QObject
 public:
     /// Construct a new HTTP Server.
     /** @param parent Parent QObject for the server. */
-    QHttpServer(QObject *parent = 0);
+    QHttpServer(QObject *parent = 0, int maxThreads=1, int prefConnsPerThread=10);
 
     virtual ~QHttpServer();
 
@@ -92,12 +143,13 @@ Q_SIGNALS:
         @param response Response object to the request. */
     void newRequest(QHttpRequest *request, QHttpResponse *response);
 
-
 private Q_SLOTS:
     void _newConnection();
 
 private:
-    QTcpServer *m_tcpServer;
+    QMtTcpServer *m_tcpServer;
+    int m_maxThreads;
+    int m_prefConnsPerThread;
 };
 
 #endif

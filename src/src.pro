@@ -10,7 +10,7 @@ TARGET = qhttpserver
 QT += network
 QT -= gui
 
-CONFIG += dll debug_and_release
+CONFIG += dll debug_and_release c++11
 
 CONFIG(debug, debug|release) {
     win32: TARGET = $$join(TARGET,,,d)

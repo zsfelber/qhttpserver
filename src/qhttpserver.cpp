@@ -29,9 +29,88 @@
 
 #include "qhttpconnection.h"
 
+template <typename N>
+inline N max_inl(N n1, N n2) {
+    return (n1 < n2) ? n2 : n1;
+}
+
+
+QMtTcpEntry::QMtTcpEntry(QMtTcpServer *parent, qintptr socketDescriptor) :
+        parent(parent), finished(false) {
+
+    socketDescriptors.append(socketDescriptor);
+}
+
+QMtTcpEntry::~QMtTcpEntry() {
+    if (QThread::currentThread() != mainThread) {
+        throw std::exception();
+    }
+    parent->activeEntries.removeOne(this);
+}
+
+void QMtTcpEntry::run() {
+    QMutexLocker ___lock(&mutex);
+    for (auto sd : socketDescriptors) {
+        parent->defaultIncomingConnection(sd);
+    }
+    finished = true;
+    deleteLater();
+}
+bool QMtTcpEntry::add(qintptr socketDescriptor) {
+    QMutexLocker ___lock(&mutex);
+    if (finished||socketDescriptors.size()>=parent->m_prefConnsPerThread) {
+        return false;
+    } else {
+        socketDescriptors.append(socketDescriptor);
+        return true;
+    }
+}
+
+/// Construct a new multithreaded TCP Server.
+/** @param parent Parent QObject for the server. */
+QMtTcpServer::QMtTcpServer(QObject *parent, int maxThreads, int prefConnsPerThread) :
+    QTcpServer(parent),
+    m_maxThreads(maxThreads), m_prefConnsPerThread(prefConnsPerThread),
+    m_prefThreads(max_inl(1,maxThreads/prefConnsPerThread)), m_current(0)
+{
+    if (QThread::currentThread() != mainThread) {
+        throw std::exception();
+    }
+    tpool.setMaxThreadCount(maxThreads);
+}
+
+void QMtTcpServer::incomingConnection(qintptr socketDescriptor) {
+    if (QThread::currentThread() != mainThread) {
+        throw std::exception();
+    }
+    int a = activeEntries.size();
+    if (a <= m_prefThreads || m_maxThreads <= a) {
+        auto e = new QMtTcpEntry(this, socketDescriptor);
+        activeEntries.append(e);
+        tpool.start(e);
+    } else {
+        bool fndActive;
+        do {
+            m_current=(m_current+1)%activeEntries.size();
+            auto e = activeEntries[m_current];
+            fndActive = e->add(socketDescriptor);
+        } while (!fndActive);
+    }
+}
+
+void QMtTcpServer::defaultIncomingConnection(qintptr socketDescriptor) {
+    if (QThread::currentThread() == mainThread) {
+        throw std::exception();
+    }
+    QTcpServer::incomingConnection(socketDescriptor);
+}
+
+
+
 QHash<int, QString> STATUS_CODES;
 
-QHttpServer::QHttpServer(QObject *parent) : QObject(parent), m_tcpServer(0)
+QHttpServer::QHttpServer(QObject *parent, int maxThreads, int prefConnsPerThread) :
+    QObject(parent), m_tcpServer(0), m_maxThreads(maxThreads), m_prefConnsPerThread(prefConnsPerThread)
 {
 #define STATUS_CODE(num, reason) STATUS_CODES.insert(num, reason);
     // {{{
@@ -110,7 +189,7 @@ void QHttpServer::_newConnection()
 bool QHttpServer::listen(const QHostAddress &address, quint16 port)
 {
     Q_ASSERT(!m_tcpServer);
-    m_tcpServer = new QTcpServer(this);
+    m_tcpServer = new QMtTcpServer(this, m_maxThreads, m_prefConnsPerThread);
 
     bool couldBindToPort = m_tcpServer->listen(address, port);
     if (couldBindToPort) {

@@ -9,6 +9,7 @@
 #include <qhttpresponse.h>
 
 /// Greeting
+QThread *mainThread;
 
 Greeting::Greeting()
 {
@@ -42,6 +43,7 @@ void Greeting::handleRequest(QHttpRequest *req, QHttpResponse *resp)
 
 int main(int argc, char **argv)
 {
+    mainThread = QThread::currentThread();
     QCoreApplication app(argc, argv);
     Greeting greeting;
     app.exec();

@@ -10,6 +10,7 @@
 #include <qhttpresponse.h>
 
 /// BodyData
+QThread *mainThread;
 
 BodyData::BodyData()
 {
@@ -70,6 +71,7 @@ void Responder::reply()
 
 int main(int argc, char **argv)
 {
+    mainThread = QThread::currentThread();
     QCoreApplication app(argc, argv);
     BodyData bodydata;
     app.exec();
