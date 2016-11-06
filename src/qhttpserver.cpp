@@ -34,12 +34,6 @@ template <typename N>
 inline N max_inl(N n1, N n2) {
     return (n1 < n2) ? n2 : n1;
 }
-inline QString s(QTcpSocket const & socket) {
-    QString s;
-    s = socket.peerName()+" "+socket.peerAddress().toString()+":"+QString::number(socket.peerPort())+
-            "#"+QString::number((std::ptrdiff_t)socket.thread(),16);
-    return s;
-}
 
 
 
@@ -85,6 +79,7 @@ void QMtTcpServer::incomingConnection(qintptr socketDescriptor) {
             for (auto thread : activeThreads) {
                 if (thread->add(socket)) {
                     pendingSockets.push_back(new PendingSocket(thread, socket));
+                    socket->setParent(0);
                     socket->moveToThread(thread);
                     return;
                 }
@@ -103,13 +98,14 @@ void QMtTcpServer::incomingConnection(qintptr socketDescriptor) {
         thread->add(socket);
         activeThreads.push_back(thread);
         pendingSockets.push_back(new PendingSocket(thread,socket));
+        socket->setParent(0);
         socket->moveToThread(thread);
 
         thread->start();
     }
 }
 
-QTcpSocket * QMtTcpServer::createClientSocketPeer(qintptr socketDescriptor) {
+QTcpSocketL * QMtTcpServer::createClientSocketPeer(qintptr socketDescriptor) {
     if (QThread::currentThread() != mainThread) {
         qCritical()<<"current thread : "<<QThread::currentThread()<<":"<<QThread::currentThreadId()<<
             " != mainThread : "<<mainThread;
@@ -119,7 +115,7 @@ QTcpSocket * QMtTcpServer::createClientSocketPeer(qintptr socketDescriptor) {
     // Affinity is (will set later to) QTcpClientPeerThread (thread),
     // so event loop is running and messaging socket (thus whole object branch)
     // from there:
-    QTcpSocket * clientPeer = new QTcpSocket();
+    QTcpSocketL * clientPeer = new QTcpSocketL();
 
     int sz = pendingSockets.size();
 
@@ -250,17 +246,21 @@ void QHttpServer::_newConnection()
         throw std::exception();
     }
 
+    qDebug() << "QHttpServer . _newConnection";
+
     while (m_tcpServer->hasPendingConnections()) {
         QHttpConnection *connection =
             new QHttpConnection(m_tcpServer->nextPendingConnection());
         connect(connection, SIGNAL(newRequest(QHttpRequest *, QHttpResponse *)), this,
-                SIGNAL(newRequest(QHttpRequest *, QHttpResponse *)));
+                SIGNAL(newRequest(QHttpRequest *, QHttpResponse *)), Qt::DirectConnection);
         emit newConnection(connection);
     }
 }
 
 bool QHttpServer::listen(const QHostAddress &address, quint16 port)
 {
+    qDebug() << "QHttpServer . listern : " << address.toString()<<":"<<QString::number(port);
+
     Q_ASSERT(!m_tcpServer);
     m_tcpServer = new QMtTcpServer(this, m_maxThreads, m_maxConnsPerThread, m_maxPendingConnections);
 
@@ -281,6 +281,8 @@ bool QHttpServer::listen(quint16 port)
 
 void QHttpServer::close()
 {
+    qDebug() << "QHttpServer . close";
+
     if (m_tcpServer)
         m_tcpServer->close();
 }

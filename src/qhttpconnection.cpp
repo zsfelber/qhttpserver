@@ -66,10 +66,14 @@ QHttpConnection::QHttpConnection(QTcpSocket *socket)
     connect(socket, SIGNAL(readyRead()), this, SLOT(parseRequest()), Qt::DirectConnection);
     connect(socket, SIGNAL(disconnected()), this, SLOT(socketDisconnected()), Qt::DirectConnection);
     connect(socket, SIGNAL(bytesWritten(qint64)), this, SLOT(updateWriteCount(qint64)), Qt::DirectConnection);
+
+    qDebug() << "QHttpConnection ready : " << s(*socket);
 }
 
 QHttpConnection::~QHttpConnection()
 {
+    qDebug() << "QHttpConnection ~ : " << s(*m_socket);
+
     delete m_socket;
     m_socket = 0;
 
@@ -203,8 +207,11 @@ int QHttpConnection::MessageBegin(http_parser *parser)
 
 int QHttpConnection::HeadersComplete(http_parser *parser)
 {
+
     QHttpConnection *theConnection = static_cast<QHttpConnection *>(parser->data);
     Q_ASSERT(theConnection->m_request);
+
+    qDebug() << "QHttpConnection . HeadersComplete ... : " << s(*theConnection->m_socket);
 
     /** set method **/
     theConnection->m_request->setMethod(static_cast<QHttpRequest::HttpMethod>(parser->method));
@@ -238,6 +245,8 @@ int QHttpConnection::HeadersComplete(http_parser *parser)
 
     connect(theConnection, SIGNAL(destroyed()), response, SLOT(connectionClosed()));
     connect(response, SIGNAL(done()), theConnection, SLOT(responseDone()));
+
+    qDebug() << "QHttpConnection . newRequest ... : " << s(*theConnection->m_socket);
 
     // we are good to go!
     Q_EMIT theConnection->newRequest(theConnection->m_request, response);

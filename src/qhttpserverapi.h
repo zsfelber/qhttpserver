@@ -24,6 +24,10 @@
 #define Q_HTTP_SERVER_API
 
 #include <QtGlobal>
+#include <QString>
+#include <QThread>
+#include <QTcpSocket>
+#include <QHostAddress>
 
 #if (QT_VERSION >= QT_VERSION_CHECK(5, 0, 0))
 #ifdef Q_OS_WIN
@@ -52,5 +56,15 @@
 #define QHTTPSERVER_API
 #endif
 #endif
+
+
+inline QString s(QTcpSocket const & socket) {
+    QString s;
+    s = socket.peerName()+" "+socket.peerAddress().toString()+":"+QString::number(socket.peerPort())+
+            "#"+QString::number((std::ptrdiff_t)socket.thread(),16)+
+            ",cur#"+QString::number((std::ptrdiff_t)QThread::currentThread(),16)
+            ;
+    return s;
+}
 
 #endif

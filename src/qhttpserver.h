@@ -47,11 +47,12 @@ extern QThread * mainThread;
 
 
 class QTcpClientPeerThread;
+class QTcpSocketL;
 
 struct PendingSocket {
     QTcpClientPeerThread * thread;
-    QTcpSocket * socket;
-    PendingSocket(QTcpClientPeerThread * thread, QTcpSocket * socket) : thread(thread), socket(socket) {
+    QTcpSocketL * socket;
+    PendingSocket(QTcpClientPeerThread * thread, QTcpSocketL * socket) : thread(thread), socket(socket) {
 
     }
 };
@@ -80,8 +81,23 @@ protected:
 
     void incomingConnection(qintptr socketDescriptor);
 
-    QTcpSocket * createClientSocketPeer(qintptr socketDescriptor);
+    QTcpSocketL * createClientSocketPeer(qintptr socketDescriptor);
 
+};
+
+class QTcpSocketL : public QTcpSocket {
+    Q_OBJECT
+public:
+    QTcpSocketL() {
+        connect(this, &QTcpSocket::aboutToClose, this, &QTcpSocketL::aboutToClose);
+    }
+private slots:
+    inline void aboutToClose() {
+        emit aboutToClose2(this);
+    }
+
+signals:
+    void aboutToClose2(QTcpSocketL * me);
 };
 
 class QTcpClientPeerThread : public QThread {
@@ -93,7 +109,7 @@ Q_OBJECT
 public:
     QTcpClientPeerThread(int max) : max(max), connections(0) {
     }
-    inline bool add(QTcpSocket * socket) {
+    inline bool add(QTcpSocketL * socket) {
         if (QThread::currentThread() != mainThread) {
             qCritical()<<"current thread : "<<QThread::currentThread()<<":"<<QThread::currentThreadId()<<
                 " != mainThread : "<<mainThread;
@@ -101,7 +117,8 @@ public:
         }
         if (connections < max) {
             ++connections;
-            connect(socket, &QTcpSocket::aboutToClose, this, &QTcpClientPeerThread::closed1);
+            qDebug() << "QTcpClientPeerThread . add  connections:"<<connections<<" < max:"<<max<<"... : " << s(*socket);
+            connect(socket, &QTcpSocketL::aboutToClose2, this, &QTcpClientPeerThread::closed1);
             return true;
         } else {
             return false;
@@ -109,13 +126,15 @@ public:
     }
 private slots:
 
-    inline void closed1() {
+    inline void closed1(QTcpSocketL * socket) {
+
         if (QThread::currentThread() != mainThread) {
             qCritical()<<"current thread : "<<QThread::currentThread()<<":"<<QThread::currentThreadId()<<
                 " != mainThread : "<<mainThread;
             throw std::exception();
         }
         --connections;
+        qDebug() << "QTcpClientPeerThread . closed1  connections:"<<connections<<" < max:"<<max<<"... : " << s(*socket);
     }
 };
 

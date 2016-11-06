@@ -8,6 +8,7 @@
 #include <qhttpserver.h>
 #include <qhttprequest.h>
 #include <qhttpresponse.h>
+#include <qhttpconnection.h>
 
 /// BodyData
 QThread *mainThread;
@@ -16,7 +17,7 @@ BodyData::BodyData()
 {
     QHttpServer *server = new QHttpServer(this);
     connect(server, SIGNAL(newRequest(QHttpRequest*, QHttpResponse*)),
-        this, SLOT(handleRequest(QHttpRequest*, QHttpResponse*)));
+        this, SLOT(handleRequest(QHttpRequest*, QHttpResponse*)), Qt::DirectConnection);
         
     server->listen(QHostAddress::Any, 8080);
 }
@@ -32,6 +33,8 @@ Responder::Responder(QHttpRequest *req, QHttpResponse *resp)
     : m_req(req)
     , m_resp(resp)
 {
+    qDebug() << "bodydata . Responder : " << s(*req->connection()->socket());
+
     QRegExp exp("^/user/([a-z]+$)");
     if (exp.indexIn(req->path()) == -1)
     {
