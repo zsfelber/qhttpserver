@@ -15,12 +15,107 @@
 
 /** A thread-safe asynchronous queue */
 template <class T, class Container = std::list<T> >
-class SafeQueue
+class SafeQueue : std::queue<T, Container>
 {
 
     typedef typename Container::value_type value_type;
     typedef typename Container::size_type size_type;
     typedef Container container_type;
+    typedef std::queue<T, Container> Super;
+
+    // m_queue
+    inline Super const & queue() const { return *this; }
+    inline Super & queue() { return *this; }
+
+    struct iterator {
+        typename Container::iterator it;
+        std::mutex *lock;
+        bool root;
+        iterator(typename Container::iterator it, SafeQueue<T,Container> &sq) :
+            it(it), lock(&sq.m_mutex), root(1) {
+            lock->lock();
+        }
+        iterator(iterator &&o) {
+            it = o.it;
+            lock = o.lock;
+            root = o.root;
+            o.root = 0;
+        }
+        iterator(iterator const & o) {
+            it = o.it;
+            lock = o.lock;
+            root = 0;
+        }
+
+        ~iterator() {
+            if (root) {
+                lock->unlock();
+            }
+        }
+        iterator & operator++(int) {
+            ++it;
+            return this;
+        }
+        iterator operator++() {
+            const_iterator i2 = *this;
+            ++i2.it;
+            return i2;
+        }
+        T& operator* () {
+            return *it;
+        }
+        bool operator ==(iterator const & o) {
+            return it == o.it;
+        }
+        bool operator !=(iterator const & o) {
+            return it != o.it;
+        }
+    };
+    struct const_iterator {
+        typename Container::const_iterator it;
+        std::mutex *lock;
+        bool root;
+        const_iterator(typename Container::const_iterator it, SafeQueue<T,Container> &sq) :
+            it(it), lock(&sq.m_mutex), root(1) {
+            lock->lock();
+        }
+        const_iterator(const_iterator &&o) {
+            it = o.it;
+            lock = o.lock;
+            root = o.root;
+            o.root = 0;
+        }
+        const_iterator(const_iterator const & o) {
+            it = o.it;
+            lock = o.lock;
+            root = 0;
+        }
+
+        ~const_iterator() {
+            if (root) {
+                lock->unlock();
+            }
+        }
+
+        const_iterator & operator++(int) {
+            ++it;
+            return this;
+        }
+        const_iterator operator++() {
+            const_iterator i2 = *this;
+            ++i2.it;
+            return i2;
+        }
+        T const & operator* () {
+            return *it;
+        }
+        bool operator ==(const_iterator const & o) {
+            return it == o.it;
+        }
+        bool operator !=(const_iterator const & o) {
+            return it != o.it;
+        }
+    };
 
   public:
 
@@ -28,18 +123,34 @@ class SafeQueue
     SafeQueue() = default;
     SafeQueue (SafeQueue&& sq)
     {
-      m_queue = std::move (sq.m_queue);
+      *this = std::move (sq.queue());
     }
     SafeQueue (const SafeQueue& sq)
     {
       std::lock_guard<std::mutex> lock (sq.m_mutex);
-      m_queue = sq.m_queue;
+      queue() = sq.queue();
     }
 
     /*! Destroy safe queue. */
     ~SafeQueue()
     {
       std::lock_guard<std::mutex> lock (m_mutex);
+    }
+
+    const_iterator begin() const {
+        return const_iterator(Super::c.begin(),*this);
+    }
+
+    const_iterator end() const {
+        return const_iterator(Super::c.end(),*this);
+    }
+
+    iterator begin() {
+        return iterator(Super::c.begin(),*this);
+    }
+
+    iterator end() {
+        return iterator(Super::c.end(),*this);
     }
 
     /**
@@ -60,10 +171,10 @@ class SafeQueue
     {
       std::lock_guard<std::mutex> lock (m_mutex);
 
-      if (m_max_num_items > 0 && m_queue.size() > m_max_num_items)
+      if (m_max_num_items > 0 && queue().size() > m_max_num_items)
         return false;
 
-      m_queue.push (item);
+      queue().push (item);
       m_condition.notify_one();
       return true;
     }
@@ -77,10 +188,10 @@ class SafeQueue
     {
       std::lock_guard<std::mutex> lock (m_mutex);
 
-      if (m_max_num_items > 0 && m_queue.size() > m_max_num_items)
+      if (m_max_num_items > 0 && queue().size() > m_max_num_items)
         return false;
 
-      m_queue.push (item);
+      queue().push (item);
       m_condition.notify_one();
       return true;
     }
@@ -94,10 +205,10 @@ class SafeQueue
       std::unique_lock<std::mutex> lock (m_mutex);
       m_condition.wait (lock, [this]() // Lambda funct
       {
-        return !m_queue.empty();
+        return !queue().empty();
       });
-      item = m_queue.front();
-      m_queue.pop();
+      item = queue().front();
+      queue().pop();
     }
 
     /**
@@ -111,10 +222,10 @@ class SafeQueue
       std::unique_lock<std::mutex> lock (m_mutex);
       m_condition.wait (lock, [this]() // Lambda funct
       {
-        return !m_queue.empty();
+        return !queue().empty();
       });
-      item = std::move (m_queue.front());
-      m_queue.pop();
+      item = std::move (queue().front());
+      queue().pop();
     }
 
     /**
@@ -126,11 +237,11 @@ class SafeQueue
     {
       std::unique_lock<std::mutex> lock (m_mutex);
 
-      if (m_queue.empty())
+      if (queue().empty())
         return false;
 
-      item = m_queue.front();
-      m_queue.pop();
+      item = queue().front();
+      queue().pop();
       return true;
     }
 
@@ -144,11 +255,11 @@ class SafeQueue
     {
       std::unique_lock<std::mutex> lock (m_mutex);
 
-      if (m_queue.empty())
+      if (queue().empty())
         return false;
 
-      item = std::move (m_queue.front());
-      m_queue.pop();
+      item = std::move (queue().front());
+      queue().pop();
       return true;
     }
 
@@ -162,7 +273,7 @@ class SafeQueue
     {
       std::unique_lock<std::mutex> lock (m_mutex);
 
-      if (m_queue.empty())
+      if (queue().empty())
         {
           if (timeout == 0)
             return false;
@@ -171,8 +282,8 @@ class SafeQueue
             return false;
         }
 
-      item = m_queue.front();
-      m_queue.pop();
+      item = queue().front();
+      queue().pop();
       return true;
     }
 
@@ -188,7 +299,7 @@ class SafeQueue
     {
       std::unique_lock<std::mutex> lock (m_mutex);
 
-      if (m_queue.empty())
+      if (queue().empty())
         {
           if (timeout == 0)
             return false;
@@ -197,9 +308,20 @@ class SafeQueue
             return false;
         }
 
-      item = std::move (m_queue.front());
-      m_queue.pop();
+      item = std::move (queue().front());
+      queue().pop();
       return true;
+    }
+
+    inline bool removeOne(T const & theOne) {
+        std::unique_lock<std::mutex> lock (m_mutex);
+        for (auto it = begin(); it!=end(); it++) {
+            if (*it==theOne) {
+                Super::c.erase(it);
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -209,7 +331,7 @@ class SafeQueue
     size_type size() const
     {
       std::lock_guard<std::mutex> lock (m_mutex);
-      return m_queue.size();
+      return queue().size();
     }
 
     /**
@@ -219,7 +341,7 @@ class SafeQueue
     bool empty() const
     {
       std::lock_guard<std::mutex> lock (m_mutex);
-      return m_queue.empty();
+      return queue().empty();
     }
 
     /**
@@ -232,12 +354,12 @@ class SafeQueue
         {
           std::lock_guard<std::mutex> lock1 (m_mutex);
           std::lock_guard<std::mutex> lock2 (sq.m_mutex);
-          m_queue.swap (sq.m_queue);
+          queue().swap (sq.queue());
 
-          if (!m_queue.empty())
+          if (!queue().empty())
             m_condition.notify_all();
 
-          if (!sq.m_queue.empty())
+          if (!sq.queue().empty())
             sq.m_condition.notify_all();
         }
     }
@@ -249,10 +371,10 @@ class SafeQueue
         {
           std::lock_guard<std::mutex> lock1 (m_mutex);
           std::lock_guard<std::mutex> lock2 (sq.m_mutex);
-          std::queue<T, Container> temp {sq.m_queue};
-          m_queue.swap (temp);
+          std::queue<T, Container> temp {sq.queue()};
+          queue().swap (temp);
 
-          if (!m_queue.empty())
+          if (!queue().empty())
             m_condition.notify_all();
         }
 
@@ -263,9 +385,9 @@ class SafeQueue
     SafeQueue& operator= (SafeQueue && sq)
     {
       std::lock_guard<std::mutex> lock (m_mutex);
-      m_queue = std::move (sq.m_queue);
+      queue() = std::move (sq.queue());
 
-      if (!m_queue.empty())  m_condition.notify_all();
+      if (!queue().empty())  m_condition.notify_all();
 
       return *this;
     }
@@ -273,7 +395,7 @@ class SafeQueue
 
   private:
 
-    std::queue<T, Container> m_queue;
+    //std::queue<T, Container> m_queue;
     mutable std::mutex m_mutex;
     std::condition_variable m_condition;
     unsigned int m_max_num_items = 0;

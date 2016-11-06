@@ -52,12 +52,11 @@ class QHTTPSERVER_API QMtTcpServer : public QTcpServer
     Q_OBJECT
 
     QThreadPool tpool;
-    QList<QMtTcpEntry*> activeEntries;
+    SafeQueue<QMtTcpEntry*> activeEntries;
     SafeQueue<QTcpSocket*> pendingClients;
     int m_maxThreads;
     int m_prefConnsPerThread;
     int m_prefThreads;
-    int m_current;
 
 public:
     /// Construct a new multithreaded TCP Server.
@@ -88,8 +87,6 @@ class QMtTcpEntry : QObject, QRunnable {
     bool finished;
 
     QMtTcpEntry(QMtTcpServer *parent, qintptr socketDescriptor);
-
-    ~QMtTcpEntry();
 
     void run();
     bool add(qintptr socketDescriptor);

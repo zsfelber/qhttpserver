@@ -41,15 +41,6 @@ QMtTcpEntry::QMtTcpEntry(QMtTcpServer *parent, qintptr socketDescriptor) :
     socketDescriptors.append(socketDescriptor);
 }
 
-QMtTcpEntry::~QMtTcpEntry() {
-    if (QThread::currentThread() != mainThread) {
-        qCritical()<<"current thread : "<<QThread::currentThread()<<":"<<QThread::currentThreadId()<<
-            " != mainThread : "<<mainThread;
-        throw std::exception();
-    }
-    parent->activeEntries.removeOne(this);
-}
-
 void QMtTcpEntry::run() {
     {
         QMutexLocker ___lock(&mutex);
@@ -58,7 +49,8 @@ void QMtTcpEntry::run() {
         }
         finished = true;
     }
-    moveToThread(mainThread);
+
+    parent->activeEntries.removeOne(this);
     deleteLater();
 }
 bool QMtTcpEntry::add(qintptr socketDescriptor) {
@@ -76,7 +68,7 @@ bool QMtTcpEntry::add(qintptr socketDescriptor) {
 QMtTcpServer::QMtTcpServer(QObject *parent, int maxThreads, int prefConnsPerThread) :
     QTcpServer(parent),
     m_maxThreads(maxThreads), m_prefConnsPerThread(prefConnsPerThread),
-    m_prefThreads(max_inl(1,maxThreads/prefConnsPerThread)), m_current(0)
+    m_prefThreads(max_inl(1,maxThreads/prefConnsPerThread))
 {
     if (QThread::currentThread() != mainThread) {
         qCritical()<<"current thread : "<<QThread::currentThread()<<":"<<QThread::currentThreadId()<<
@@ -95,20 +87,18 @@ void QMtTcpServer::incomingConnection(qintptr socketDescriptor) {
     int a = activeEntries.size();
     if (a <= m_prefThreads || m_maxThreads <= a) {
         auto e = new QMtTcpEntry(this, socketDescriptor);
-        activeEntries.append(e);
+        activeEntries.push(e);
         tpool.start(e);
     } else {
 
-        for (int i = activeEntries.size(); i; --i) {
-            m_current=(m_current+1)%activeEntries.size();
-            auto e = activeEntries[m_current];
+        for (auto e : activeEntries) {
             if (e->add(socketDescriptor)) {
                 return;
             }
         }
 
         auto e = new QMtTcpEntry(this, socketDescriptor);
-        activeEntries.append(e);
+        activeEntries.push(e);
         tpool.start(e);
     }
 }
@@ -120,8 +110,17 @@ void QMtTcpServer::defaultIncomingConnection(qintptr socketDescriptor) {
         throw std::exception();
     }
     QTcpSocket * clientPeer = new QTcpSocket();
-    clientPeer->setSocketDescriptor(socketDescriptor);
-    pendingClients.push(clientPeer);
+    int sz = pendingClients.size();
+    if (!clientPeer->setSocketDescriptor(socketDescriptor) && clientPeer->open(QTcpSocket::ReadWrite)) {
+        qCritical()<<"client socket failure, aborted (#"<<sz<<"/"<<maxPendingConnections()<<") : "<<socketDescriptor;
+        clientPeer->abort();
+    } else if (maxPendingConnections()<=sz) {
+        qCritical()<<"Too many pending connections (#"<<sz<<"/"<<maxPendingConnections()<<") : "<<socketDescriptor;
+        clientPeer->abort();
+    } else {
+        qDebug()<<"Pending client socket accepted : (#"<<sz<<"/"<<maxPendingConnections()<<") : "<<socketDescriptor;
+        pendingClients.push(clientPeer);
+    }
 }
 
 QTcpSocket * QMtTcpServer::nextPendingConnection() {
