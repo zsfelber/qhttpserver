@@ -31,7 +31,7 @@ class SafeQueue : std::queue<T, Container>
         typename Container::iterator it;
         std::mutex *lock;
         bool root;
-        iterator(typename Container::iterator it, SafeQueue<T,Container> &sq) :
+        iterator(typename Container::iterator const & it, SafeQueue<T,Container> &sq) :
             it(it), lock(&sq.m_mutex), root(1) {
             lock->lock();
         }
@@ -52,22 +52,25 @@ class SafeQueue : std::queue<T, Container>
                 lock->unlock();
             }
         }
-        iterator & operator++(int) {
+        iterator & operator++() {
             ++it;
-            return this;
+            return *this;
         }
-        iterator operator++() {
-            const_iterator i2 = *this;
+        iterator operator++(int) const {//postfix
+            iterator i2 = *this;
             ++i2.it;
             return i2;
         }
-        T& operator* () {
+        T& operator* () const {
+            if (!root) {
+                throw std::exception();
+            }
             return *it;
         }
-        bool operator ==(iterator const & o) {
+        bool operator ==(iterator const & o) const {
             return it == o.it;
         }
-        bool operator !=(iterator const & o) {
+        bool operator !=(iterator const & o) const {
             return it != o.it;
         }
     };
@@ -75,7 +78,7 @@ class SafeQueue : std::queue<T, Container>
         typename Container::const_iterator it;
         std::mutex *lock;
         bool root;
-        const_iterator(typename Container::const_iterator it, SafeQueue<T,Container> &sq) :
+        const_iterator(typename Container::const_iterator const & it, SafeQueue<T,Container> &sq) :
             it(it), lock(&sq.m_mutex), root(1) {
             lock->lock();
         }
@@ -97,22 +100,25 @@ class SafeQueue : std::queue<T, Container>
             }
         }
 
-        const_iterator & operator++(int) {
+        const_iterator & operator++() {
             ++it;
-            return this;
+            return *this;
         }
-        const_iterator operator++() {
+        const_iterator operator++(int) const {//postfix
             const_iterator i2 = *this;
             ++i2.it;
             return i2;
         }
-        T const & operator* () {
+        T const & operator* () const {
+            if (!root) {
+                throw std::exception();
+            }
             return *it;
         }
-        bool operator ==(const_iterator const & o) {
+        bool operator ==(const_iterator const & o) const {
             return it == o.it;
         }
-        bool operator !=(const_iterator const & o) {
+        bool operator !=(const_iterator const & o) const {
             return it != o.it;
         }
     };
@@ -314,10 +320,9 @@ class SafeQueue : std::queue<T, Container>
     }
 
     inline bool removeOne(T const & theOne) {
-        std::unique_lock<std::mutex> lock (m_mutex);
         for (auto it = begin(); it!=end(); it++) {
             if (*it==theOne) {
-                Super::c.erase(it);
+                Super::c.erase(it.it);
                 return true;
             }
         }

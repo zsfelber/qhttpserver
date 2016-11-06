@@ -33,6 +33,7 @@
 #include <QTcpServer>
 #include <QMutex>
 #include <QMutexLocker>
+#include <QEventLoop>
 
 #include "safequeue.h"
 #include "qhttpserverapi.h"
@@ -52,20 +53,17 @@ class QHTTPSERVER_API QMtTcpServer : public QTcpServer
     Q_OBJECT
 
     QThreadPool tpool;
-    SafeQueue<QMtTcpEntry*> activeEntries;
-    SafeQueue<QTcpSocket*> pendingClients;
+    QList<QMtTcpEntry*> activeEntries;
     int m_maxThreads;
-    int m_prefConnsPerThread;
+    int m_maxConnsPerThread;
     int m_prefThreads;
 
 public:
     /// Construct a new multithreaded TCP Server.
     /** @param parent Parent QObject for the server. */
-    QMtTcpServer(QObject *parent = 0, int maxThreads=1, int prefConnsPerThread=10);
+    QMtTcpServer(QObject *parent, int maxThreads, int maxConnsPerThread, int maxPendingConnections);
 
-    inline bool hasPendingConnections() {
-        return pendingClients.size();
-    }
+    bool hasPendingConnections();
 
     QTcpSocket * nextPendingConnection();
 
@@ -73,7 +71,7 @@ protected:
 
     void incomingConnection(qintptr socketDescriptor);
 
-    void defaultIncomingConnection(qintptr socketDescriptor);
+    QTcpSocket * createClientSocketPeer(qintptr socketDescriptor);
 
 };
 
@@ -82,14 +80,18 @@ class QMtTcpEntry : QObject, QRunnable {
     Q_OBJECT
 
     QMtTcpServer *parent;
-    QList<qintptr> socketDescriptors;
+    QList<QTcpSocket*> pendingSockets;
+    QList<QTcpSocket*> acceptedSockets;
     QMutex mutex;
-    bool finished;
+    bool started;
+    QEventLoop * eventLoop;
 
-    QMtTcpEntry(QMtTcpServer *parent, qintptr socketDescriptor);
+    QMtTcpEntry(QMtTcpServer *parent, QTcpSocket * socket);
+    ~QMtTcpEntry();
 
     void run();
-    bool add(qintptr socketDescriptor);
+    bool add(QTcpSocket * socket);
+    QTcpSocket * pop();
 };
 
 
@@ -117,7 +119,7 @@ class QHTTPSERVER_API QHttpServer : public QObject
 public:
     /// Construct a new HTTP Server.
     /** @param parent Parent QObject for the server. */
-    QHttpServer(QObject *parent = 0, int maxThreads=1, int prefConnsPerThread=10);
+    QHttpServer(QObject *parent = 0, int maxThreads=1, int maxConnsPerThread=10,int maxPendingConnections=30);
 
     virtual ~QHttpServer();
 
@@ -155,7 +157,8 @@ private Q_SLOTS:
 private:
     QMtTcpServer *m_tcpServer;
     int m_maxThreads;
-    int m_prefConnsPerThread;
+    int m_maxConnsPerThread;
+    int m_maxPendingConnections;
 };
 
 #endif

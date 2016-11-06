@@ -31,8 +31,10 @@
 
 /// @cond nodoc
 
-QHttpConnection::QHttpConnection(QTcpSocket *socket, QObject *parent)
-    : QObject(parent),
+QHttpConnection::QHttpConnection(QTcpSocket *socket)
+// NOTE this should exist in socket thread, but
+// instantiated in main thread:
+    : QObject(0),
       m_socket(socket),
       m_parser(0),
       m_parserSettings(0),
@@ -40,6 +42,11 @@ QHttpConnection::QHttpConnection(QTcpSocket *socket, QObject *parent)
       m_transmitLen(0),
       m_transmitPos(0)
 {
+    // NOTE this should exist in socket thread, but
+    // instantiated in main thread:
+    moveToThread(socket->thread());
+    socket->setParent(this);
+
     m_parser = (http_parser *)malloc(sizeof(http_parser));
     http_parser_init(m_parser, HTTP_REQUEST);
 
@@ -54,9 +61,11 @@ QHttpConnection::QHttpConnection(QTcpSocket *socket, QObject *parent)
 
     m_parser->data = this;
 
-    connect(socket, SIGNAL(readyRead()), this, SLOT(parseRequest()));
-    connect(socket, SIGNAL(disconnected()), this, SLOT(socketDisconnected()));
-    connect(socket, SIGNAL(bytesWritten(qint64)), this, SLOT(updateWriteCount(qint64)));
+    // NOTE this should exist in socket thread, but
+    // instantiated in main thread:
+    connect(socket, SIGNAL(readyRead()), this, SLOT(parseRequest()), Qt::DirectConnection);
+    connect(socket, SIGNAL(disconnected()), this, SLOT(socketDisconnected()), Qt::DirectConnection);
+    connect(socket, SIGNAL(bytesWritten(qint64)), this, SLOT(updateWriteCount(qint64)), Qt::DirectConnection);
 }
 
 QHttpConnection::~QHttpConnection()
