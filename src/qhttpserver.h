@@ -197,11 +197,8 @@ public:
     QTcpClientPeerThread(QMtTcpServer *parent, int max) : parent(parent), max(max), connections(0) {
     }
     inline bool add(QTcpSocketL * socket) {
-        if (QThread::currentThread() != parent->thread()) {
-            qCritical()<<"current thread : "<<(void*)QThread::currentThread()<<
-                " != parent->thread() : "<<(void*)parent->thread();
-            throw std::exception();
-        }
+        ASSERT_THREADS_DIFFERENT(QThread::currentThread(), parent->thread());
+
         if (connections < max) {
             ++connections;
             qDebug() << "QTcpClientPeerThread . add  connections:"<<connections<<" < max:"<<max<<"... : " << s(*socket);
@@ -215,11 +212,8 @@ private slots:
 
     inline void closed1(QTcpSocketL * socket) {
 
-        if (QThread::currentThread() != parent->thread()) {
-            qCritical()<<"current thread : "<<(void*)QThread::currentThread()<<
-                " != parent->thread() : "<<(void*)parent->thread();
-            throw std::exception();
-        }
+        ASSERT_THREADS_DIFFERENT(QThread::currentThread(), parent->thread());
+
         --connections;
         qDebug() << "QTcpClientPeerThread . closed1  connections:"<<connections<<" < max:"<<max<<"... : " << s(*socket);
     }

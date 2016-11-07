@@ -54,11 +54,7 @@ void QMtTcpServer::incomingConnection(qintptr socketDescriptor) {
     // socket and connection objects branch needs moveToThread(socket thread) and
     // Qt::DirectConnection-s of signals to make them all to receive in socket thread !
 
-    if (QThread::currentThread() != thread()) {
-        qCritical()<<"current thread : "<<(void*)QThread::currentThread()<<
-            " != thread() : "<<(void*)thread();
-        throw std::exception();
-    }
+    ASSERT_THREADS_DIFFERENT(QThread::currentThread(), thread());
 
     auto socket = createClientSocketPeer(socketDescriptor);
 
@@ -74,9 +70,9 @@ void QMtTcpServer::incomingConnection(qintptr socketDescriptor) {
 
             for (auto thread : activeThreads) {
                 if (thread->add(socket)) {
-                    pendingSockets.push_back(new PendingSocket(thread, socket));
                     socket->setParent(0);
                     socket->moveToThread(thread);
+                    pendingSockets.push_back(new PendingSocket(thread, socket));
                     return;
                 }
             }
@@ -92,21 +88,17 @@ void QMtTcpServer::incomingConnection(qintptr socketDescriptor) {
 
         auto thread = new QTcpClientPeerThread(this, m_maxConnsPerThread);
         thread->add(socket);
-        activeThreads.push_back(thread);
-        pendingSockets.push_back(new PendingSocket(thread,socket));
         socket->setParent(0);
         socket->moveToThread(thread);
+        activeThreads.push_back(thread);
+        pendingSockets.push_back(new PendingSocket(thread,socket));
 
         thread->start();
     }
 }
 
 QTcpSocketL * QMtTcpServer::createClientSocketPeer(qintptr socketDescriptor) {
-    if (QThread::currentThread() != thread()) {
-        qCritical()<<"current thread : "<<(void*)QThread::currentThread()<<
-            " != thread() : "<<(void*)thread();
-        throw std::exception();
-    }
+    ASSERT_THREADS_DIFFERENT(QThread::currentThread(), thread());
 
     // Affinity is (will set later to) QTcpClientPeerThread (thread),
     // so event loop is running and messaging socket (thus whole object branch)
@@ -134,21 +126,13 @@ QTcpSocketL * QMtTcpServer::createClientSocketPeer(qintptr socketDescriptor) {
 }
 
 bool QMtTcpServer::hasPendingConnections() {
-    if (QThread::currentThread() != thread()) {
-        qCritical()<<"current thread : "<<(void*)QThread::currentThread()<<
-            " != thread() : "<<(void*)thread();
-        throw std::exception();
-    }
+    ASSERT_THREADS_DIFFERENT(QThread::currentThread(), thread());
 
     return pendingSockets.size();
 }
 
 QTcpSocket * QMtTcpServer::nextPendingConnection() {
-    if (QThread::currentThread() != thread()) {
-        qCritical()<<"current thread : "<<(void*)QThread::currentThread()<<
-            " != thread() : "<<(void*)thread();
-        throw std::exception();
-    }
+    ASSERT_THREADS_DIFFERENT(QThread::currentThread(), thread());
 
     if (pendingSockets.size()) {
         auto e1 = pendingSockets.first();
@@ -247,6 +231,9 @@ QHttpServer::QHttpServer(QObject *parent, bool startInNewThread, int maxThreads,
 
 QHttpServer::~QHttpServer()
 {
+    if (m_serverThread) {
+        m_serverThread->deleteLater();
+    }
 }
 
 bool QHttpServer::listen(const QHostAddress& address, quint16 port)
@@ -275,17 +262,13 @@ void QHttpServer::_newConnection()
 
     // NOTE signals posted from main thread :
 
-    if (QThread::currentThread() != thread()) {
-        qCritical()<<"current thread : "<<(void*)QThread::currentThread()<<
-            " != thread() : "<<(void*)thread();
-        throw std::exception();
-    }
+    ASSERT_THREADS_DIFFERENT(QThread::currentThread(), thread());
 
     qDebug() << "QHttpServer . _newConnection";
 
     while (m_tcpServer->hasPendingConnections()) {
         QHttpConnection *connection =
-            new QHttpConnection(m_tcpServer->nextPendingConnection());
+            new QHttpConnection(this, m_tcpServer->nextPendingConnection());
         connect(connection, SIGNAL(newRequest(QHttpRequest *, QHttpResponse *)), this,
                 SIGNAL(newRequest(QHttpRequest *, QHttpResponse *)), Qt::DirectConnection);
         emit newConnection(connection);
@@ -300,11 +283,8 @@ void QHttpServer::slot_listen(QString const & _address, quint16 port) {
 
     Q_ASSERT(!m_tcpServer);
 
-    if (QThread::currentThread() != thread()) {
-        qCritical()<<"current thread : "<<(void*)QThread::currentThread()<<
-            " != thread() : "<<(void*)thread();
-        throw std::exception();
-    }
+    ASSERT_THREADS_MATCH(QThread::currentThread(), thread());
+
     m_tcpServer = new QMtTcpServer(this, m_maxThreads, m_maxConnsPerThread, m_maxPendingConnections);
 
 

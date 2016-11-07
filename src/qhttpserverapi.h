@@ -57,6 +57,10 @@
 #endif
 #endif
 
+#define S1(x) #x
+#define S2(x) S1(x)
+#define ASSERT_THREADS_MATCH(t1, t2) assertThreadsMatch(__FILE__ ":" S2(__LINE__), #t1, t1, #t2, t2)
+#define ASSERT_THREADS_DIFFERENT(t1, t2) assertThreadsDifferent(__FILE__ ":" S2(__LINE__), #t1, t1, #t2, t2)
 
 inline QString s(QTcpSocket const & socket) {
     QString s;
@@ -65,6 +69,20 @@ inline QString s(QTcpSocket const & socket) {
             ",cur#"+QString::number((std::ptrdiff_t)QThread::currentThread(),16)
             ;
     return s;
+}
+inline void assertThreadsMatch(std::string const & loc, QString const & idt1, QThread const *t1, QString const & idt2, QThread const *t2) {
+    if (t1 != t2) {
+        qCritical()<<"file:///"<<loc.data()<<": "<<"Assertion failed.  Threads should be the same  :  "<<idt1<<":"<<(void*)t1<<
+            " != "<<idt2<<":"<<(void*)t2 << endl;
+        throw std::exception();
+    }
+}
+inline void assertThreadsDifferent(std::string const & loc, QString const & idt1, QThread const *t1, QString const & idt2, QThread const *t2) {
+    if (t1 == t2) {
+        qCritical()<<"file:///"<<loc.data()<<": "<<"Assertion failed.  Threads should be different  :  "<<idt1<<":"<<(void*)t1<<
+            " == "<<idt2<<":"<<(void*)t2 << endl;
+        throw std::exception();
+    }
 }
 
 #endif

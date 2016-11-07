@@ -28,10 +28,11 @@
 #include "http_parser.h"
 #include "qhttprequest.h"
 #include "qhttpresponse.h"
+#include "qhttpserver.h"
 
 /// @cond nodoc
 
-QHttpConnection::QHttpConnection(QTcpSocket *socket)
+QHttpConnection::QHttpConnection(QHttpServer *parent, QTcpSocket *socket)
 // NOTE this should exist in socket thread, but
 // instantiated in main thread:
     : QObject(0),
@@ -42,6 +43,9 @@ QHttpConnection::QHttpConnection(QTcpSocket *socket)
       m_transmitLen(0),
       m_transmitPos(0)
 {
+    ASSERT_THREADS_MATCH(thread(), parent->thread());
+    ASSERT_THREADS_DIFFERENT(thread(), socket->thread());
+
     // NOTE this should exist in socket thread, but
     // instantiated in main thread:
     moveToThread(socket->thread());
