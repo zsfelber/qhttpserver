@@ -130,28 +130,48 @@ void QHttpConnection::parseRequest()
 
 void QHttpConnection::write(const QByteArray &data, int offset, int len)
 {
+    if (!m_socket) {
+        qWarning() << "Write to QHttpConnection after disposed:" << (void*)thread();
+        return;
+    }
     if (len<0) len = data.size()-offset;
     m_socket->write(data.constData()+offset, len);
     m_transmitLen += len;
 }
 void QHttpConnection::write(const char* data, int offset, int len)
 {
+    if (!m_socket) {
+        qWarning() << "Write to QHttpConnection after disposed:" << (void*)thread();
+        return;
+    }
     m_socket->write(data+offset, len);
     m_transmitLen += len;
 }
 
 void QHttpConnection::flush()
 {
+    if (!m_socket) {
+        qWarning() << "Flush QHttpConnection after disposed:" << (void*)thread();
+        return;
+    }
     m_socket->flush();
 }
 
 void QHttpConnection::waitForBytesWritten()
 {
+    if (!m_socket) {
+        qWarning() << "waitForBytesWritten in QHttpConnection after disposed:" << (void*)thread();
+        return;
+    }
     m_socket->waitForBytesWritten();
 }
 
 void QHttpConnection::responseDone()
 {
+    if (!m_socket) {
+        qWarning() << "responseDone in QHttpConnection after disposed:" << (void*)thread();
+        return;
+    }
     QHttpResponse *response = qobject_cast<QHttpResponse *>(QObject::sender());
     if (response->m_last)
         m_socket->disconnectFromHost();
