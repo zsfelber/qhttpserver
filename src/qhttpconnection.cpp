@@ -90,6 +90,7 @@ QHttpConnection::~QHttpConnection()
 
 void QHttpConnection::socketDisconnected()
 {
+    qDebug() << "QHttpConnection::socketDisconnected   deleteLater : " <<  s(*m_socket);
     deleteLater();
     invalidateRequest();
 }
@@ -129,8 +130,14 @@ void QHttpConnection::parseRequest()
 
 void QHttpConnection::write(const QByteArray &data, int offset, int len)
 {
-    m_socket->write(data.constData()+offset, len>=0?len:(data.size()-offset));
-    m_transmitLen += data.size();
+    if (len<0) len = data.size()-offset;
+    m_socket->write(data.constData()+offset, len);
+    m_transmitLen += len;
+}
+void QHttpConnection::write(const char* data, int offset, int len)
+{
+    m_socket->write(data+offset, len);
+    m_transmitLen += len;
 }
 
 void QHttpConnection::flush()

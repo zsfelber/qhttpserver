@@ -112,6 +112,7 @@ public Q_SLOTS:
     /// Writes a block of @c data to the client.
     /** @note writeHead() must be called before this function. */
     void write(const QByteArray &data, int offset=0, int len=-1);
+    void write(const char * data, int offset, int len);
 
     /// Flushes the written data to the client.
     /** @note writeHead() must be called before this function. */

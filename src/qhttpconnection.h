@@ -39,6 +39,7 @@ public:
     virtual ~QHttpConnection();
 
     void write(const QByteArray &data, int offset=0, int len=-1);
+    void write(const char * data, int offse, int len);
     void flush();
     void waitForBytesWritten();
 

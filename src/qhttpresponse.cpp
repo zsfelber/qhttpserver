@@ -161,6 +161,21 @@ void QHttpResponse::write(const QByteArray &data, int offset, int len)
     m_connection->write(data, offset, len);
 }
 
+void QHttpResponse::write(const char* data, int offset, int len)
+{
+    if (m_finished) {
+        qWarning() << "QHttpResponse::write() Cannot write body after response has finished.";
+        return;
+    }
+
+    if (!m_headerWritten) {
+        qWarning() << "QHttpResponse::write() You must call writeHead() before writing body data.";
+        return;
+    }
+
+    m_connection->write(data, offset, len);
+}
+
 void QHttpResponse::flush()
 {
     m_connection->flush();
@@ -184,12 +199,15 @@ void QHttpResponse::end(const QByteArray &data)
 
     Q_EMIT done();
 
+    qDebug() << "QHttpResponse::end   deleteLater : #" <<  (void*)m_connection->thread();
     /// @todo End connection and delete ourselves. Is this a still valid note?
     deleteLater();
 }
 
 void QHttpResponse::connectionClosed()
 {
+    qDebug() << "QHttpResponse::connectionClosed   deleteLater : #" <<  (void*)m_connection->thread();
+
     m_finished = true;
     Q_EMIT done();
     deleteLater();

@@ -234,7 +234,10 @@ QHttpServer::QHttpServer(QObject *parent, bool startInNewThread, int maxThreads,
 QHttpServer::~QHttpServer()
 {
     if (m_serverThread) {
+        qDebug() << "QHttpServer  ~   m_serverThread->deleteLater() : " <<  (void*)m_serverThread;
         m_serverThread->deleteLater();
+    } else {
+        qDebug() << "QHttpServer  ~   no server thread, finished";
     }
 }
 
