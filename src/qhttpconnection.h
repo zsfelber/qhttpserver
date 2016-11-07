@@ -47,6 +47,7 @@ public:
 
 Q_SIGNALS:
     void newRequest(QHttpRequest *, QHttpResponse *);
+    void requestFinished(QHttpRequest *request, QHttpResponse *response);
     void allBytesWritten();
 
 private Q_SLOTS:
@@ -72,6 +73,7 @@ private:
 
     // Since there can only be one request at any time even with pipelining.
     QHttpRequest *m_request;
+    QHttpResponse *m_response;
 
     QByteArray m_currentUrl;
     // The ones we are reading in from the parser

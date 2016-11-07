@@ -277,6 +277,8 @@ void QHttpServer::_newConnection()
             new QHttpConnection(this, m_tcpServer->nextPendingConnection());
         connect(connection, SIGNAL(newRequest(QHttpRequest *, QHttpResponse *)), this,
                 SIGNAL(newRequest(QHttpRequest *, QHttpResponse *)), Qt::DirectConnection);
+        connect(connection, SIGNAL(requestFinished(QHttpRequest *, QHttpResponse *)), this,
+                SIGNAL(requestFinished(QHttpRequest *, QHttpResponse *)), Qt::DirectConnection);
         emit newConnection(connection);
     }
 }

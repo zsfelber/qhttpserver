@@ -157,6 +157,8 @@ Q_SIGNALS:
         @param response Response object to the request. */
     void newRequest(QHttpRequest *request, QHttpResponse *response);
 
+    void requestFinished(QHttpRequest *request, QHttpResponse *response);
+
     void sign_listen(QString const & address, quint16 port);
 
 private Q_SLOTS:
@@ -213,7 +215,8 @@ private slots:
 
     inline void closed1(QTcpSocketL * socket) {
 
-        ASSERT_THREADS_DIFFERENT(QThread::currentThread(), parent->thread());
+        // trivial
+        // ASSERT_THREADS_MATCH(QThread::currentThread(), parent->thread());
 
         --connections;
         qDebug() << "QTcpClientPeerThread . closed1  connections:"<<connections<<" < max:"<<max<<"... : " << s(*socket);

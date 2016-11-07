@@ -40,6 +40,7 @@ QHttpConnection::QHttpConnection(QHttpServer *parent, QTcpSocket *socket)
       m_parser(0),
       m_parserSettings(0),
       m_request(0),
+      m_response(0),
       m_transmitLen(0),
       m_transmitPos(0)
 {
@@ -78,6 +79,7 @@ QHttpConnection::~QHttpConnection()
 {
     qDebug() << "QHttpConnection ~ : " << s(*m_socket);
 
+    m_socket->close();
     delete m_socket;
     m_socket = 0;
 
@@ -99,9 +101,11 @@ void QHttpConnection::invalidateRequest()
 {
     if (m_request && !m_request->successful()) {
         Q_EMIT m_request->end();
+        Q_EMIT requestFinished(m_request, m_response);
     }
 
     m_request = NULL;
+    m_response = NULL;
 }
 
 void QHttpConnection::updateWriteCount(qint64 count)
@@ -270,17 +274,17 @@ int QHttpConnection::HeadersComplete(http_parser *parser)
     theConnection->m_request->m_remoteAddress = theConnection->m_socket->peerAddress().toString();
     theConnection->m_request->m_remotePort = theConnection->m_socket->peerPort();
 
-    QHttpResponse *response = new QHttpResponse(theConnection);
+    theConnection->m_response = new QHttpResponse(theConnection);
     if (parser->http_major < 1 || parser->http_minor < 1)
-        response->m_keepAlive = false;
+        theConnection->m_response->m_keepAlive = false;
 
-    connect(theConnection, SIGNAL(destroyed()), response, SLOT(connectionClosed()));
-    connect(response, SIGNAL(done()), theConnection, SLOT(responseDone()));
+    connect(theConnection, SIGNAL(destroyed()), theConnection->m_response, SLOT(connectionClosed()));
+    connect(theConnection->m_response, SIGNAL(done()), theConnection, SLOT(responseDone()));
 
     qDebug() << "QHttpConnection . newRequest ... : " << s(*theConnection->m_socket);
 
     // we are good to go!
-    Q_EMIT theConnection->newRequest(theConnection->m_request, response);
+    Q_EMIT theConnection->newRequest(theConnection->m_request, theConnection->m_response);
     return 0;
 }
 
@@ -292,6 +296,7 @@ int QHttpConnection::MessageComplete(http_parser *parser)
 
     theConnection->m_request->setSuccessful(true);
     Q_EMIT theConnection->m_request->end();
+    Q_EMIT theConnection->requestFinished(theConnection->m_request, theConnection->m_response);
     return 0;
 }
 
