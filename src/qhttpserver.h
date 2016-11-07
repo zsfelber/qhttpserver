@@ -43,7 +43,6 @@
 
 /// Maps status codes to string reason phrases
 extern QHash<int, QString> STATUS_CODES;
-extern QThread * mainThread;
 
 
 class QTcpClientPeerThread;
@@ -100,44 +99,7 @@ signals:
     void aboutToClose2(QTcpSocketL * me);
 };
 
-class QTcpClientPeerThread : public QThread {
-Q_OBJECT
-
-    int max;
-    int connections;
-
-public:
-    QTcpClientPeerThread(int max) : max(max), connections(0) {
-    }
-    inline bool add(QTcpSocketL * socket) {
-        if (QThread::currentThread() != mainThread) {
-            qCritical()<<"current thread : "<<(void*)QThread::currentThread()<<":"<<QThread::currentThreadId()<<
-                " != mainThread : "<<(void*)mainThread;
-            throw std::exception();
-        }
-        if (connections < max) {
-            ++connections;
-            qDebug() << "QTcpClientPeerThread . add  connections:"<<connections<<" < max:"<<max<<"... : " << s(*socket);
-            connect(socket, &QTcpSocketL::aboutToClose2, this, &QTcpClientPeerThread::closed1);
-            return true;
-        } else {
-            return false;
-        }
-    }
-private slots:
-
-    inline void closed1(QTcpSocketL * socket) {
-
-        if (QThread::currentThread() != mainThread) {
-            qCritical()<<"current thread : "<<(void*)QThread::currentThread()<<":"<<QThread::currentThreadId()<<
-                " != mainThread : "<<(void*)mainThread;
-            throw std::exception();
-        }
-        --connections;
-        qDebug() << "QTcpClientPeerThread . closed1  connections:"<<connections<<" < max:"<<max<<"... : " << s(*socket);
-    }
-};
-
+class QHttpServerThread;
 
 /// The QHttpServer class forms the basis of the %QHttpServer
 /// project. It is a fast, non-blocking HTTP server.
@@ -163,7 +125,7 @@ class QHTTPSERVER_API QHttpServer : public QObject
 public:
     /// Construct a new HTTP Server.
     /** @param parent Parent QObject for the server. */
-    QHttpServer(QObject *parent = 0, int maxThreads=1, int maxConnsPerThread=10,int maxPendingConnections=30);
+    QHttpServer(QObject *parent = 0, bool startInNewThread=true, int maxThreads=1, int maxConnsPerThread=10,int maxPendingConnections=30);
 
     virtual ~QHttpServer();
 
@@ -174,7 +136,7 @@ public:
         @param port Port number on which the server should run.
         @return True if the server was started successfully, false otherwise.
         @sa listen(quint16) */
-    bool listen(const QHostAddress &address = QHostAddress::Any, quint16 port = 80);
+    bool listen(const QHostAddress& address = QHostAddress::Any, quint16 port = 80);
 
     /// Starts the server on @c port listening on all interfaces.
     /** @param port Port number on which the server should run.
@@ -195,14 +157,72 @@ Q_SIGNALS:
         @param response Response object to the request. */
     void newRequest(QHttpRequest *request, QHttpResponse *response);
 
+    void sign_listen(QString const & address, quint16 port);
+
 private Q_SLOTS:
     void _newConnection();
 
+    void slot_listen(QString const & address, quint16 port);
+
+
 private:
+    QHttpServerThread *m_serverThread;
     QMtTcpServer *m_tcpServer;
     int m_maxThreads;
     int m_maxConnsPerThread;
     int m_maxPendingConnections;
+};
+
+
+
+
+class QHttpServerThread : public QThread {
+Q_OBJECT
+
+    QHttpServer * parent;
+
+public:
+    QHttpServerThread(QHttpServer *parent) : parent(parent) {
+    }
+};
+
+class QTcpClientPeerThread : public QThread {
+Q_OBJECT
+
+    QMtTcpServer * parent;
+    int max;
+    int connections;
+
+public:
+    QTcpClientPeerThread(QMtTcpServer *parent, int max) : parent(parent), max(max), connections(0) {
+    }
+    inline bool add(QTcpSocketL * socket) {
+        if (QThread::currentThread() != parent->thread()) {
+            qCritical()<<"current thread : "<<(void*)QThread::currentThread()<<
+                " != parent->thread() : "<<(void*)parent->thread();
+            throw std::exception();
+        }
+        if (connections < max) {
+            ++connections;
+            qDebug() << "QTcpClientPeerThread . add  connections:"<<connections<<" < max:"<<max<<"... : " << s(*socket);
+            connect(socket, &QTcpSocketL::aboutToClose2, this, &QTcpClientPeerThread::closed1);
+            return true;
+        } else {
+            return false;
+        }
+    }
+private slots:
+
+    inline void closed1(QTcpSocketL * socket) {
+
+        if (QThread::currentThread() != parent->thread()) {
+            qCritical()<<"current thread : "<<(void*)QThread::currentThread()<<
+                " != parent->thread() : "<<(void*)parent->thread();
+            throw std::exception();
+        }
+        --connections;
+        qDebug() << "QTcpClientPeerThread . closed1  connections:"<<connections<<" < max:"<<max<<"... : " << s(*socket);
+    }
 };
 
 #endif
