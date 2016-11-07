@@ -64,10 +64,14 @@
 
 inline QString s(QTcpSocket const & socket) {
     QString s;
-    s = socket.peerName()+" "+socket.peerAddress().toString()+":"+QString::number(socket.peerPort())+
-            "#"+QString::number((std::ptrdiff_t)socket.thread(),16)+
-            ",cur#"+QString::number((std::ptrdiff_t)QThread::currentThread(),16)
-            ;
+    if (socket.isOpen()) {
+        s = socket.peerName()+":"+socket.peerAddress().toString()+":"+QString::number(socket.peerPort())+
+                "#"+QString::number((std::ptrdiff_t)socket.thread(),16);
+    } else {
+        s+="<socket closed>";
+    }
+
+    s+=":cur#"+QString::number((std::ptrdiff_t)QThread::currentThread(),16) ;
     return s;
 }
 inline void assertThreadsMatch(std::string const & loc, QString const & idt1, QThread const *t1, QString const & idt2, QThread const *t2) {
