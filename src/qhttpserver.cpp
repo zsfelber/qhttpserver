@@ -54,7 +54,8 @@ void QMtTcpServer::incomingConnection(qintptr socketDescriptor) {
     // socket and connection objects branch needs moveToThread(socket thread) and
     // Qt::DirectConnection-s of signals to make them all to receive in socket thread !
 
-    ASSERT_THREADS_DIFFERENT(QThread::currentThread(), thread());
+    // trivial
+    //ASSERT_THREADS_MATCH(QThread::currentThread(), thread());
 
     auto socket = createClientSocketPeer(socketDescriptor);
 
@@ -98,7 +99,8 @@ void QMtTcpServer::incomingConnection(qintptr socketDescriptor) {
 }
 
 QTcpSocketL * QMtTcpServer::createClientSocketPeer(qintptr socketDescriptor) {
-    ASSERT_THREADS_DIFFERENT(QThread::currentThread(), thread());
+    // trivial
+    //ASSERT_THREADS_MATCH(QThread::currentThread(), thread());
 
     // Affinity is (will set later to) QTcpClientPeerThread (thread),
     // so event loop is running and messaging socket (thus whole object branch)
@@ -126,13 +128,13 @@ QTcpSocketL * QMtTcpServer::createClientSocketPeer(qintptr socketDescriptor) {
 }
 
 bool QMtTcpServer::hasPendingConnections() {
-    ASSERT_THREADS_DIFFERENT(QThread::currentThread(), thread());
+    ASSERT_THREADS_MATCH(QThread::currentThread(), thread());
 
     return pendingSockets.size();
 }
 
 QTcpSocket * QMtTcpServer::nextPendingConnection() {
-    ASSERT_THREADS_DIFFERENT(QThread::currentThread(), thread());
+    ASSERT_THREADS_MATCH(QThread::currentThread(), thread());
 
     if (pendingSockets.size()) {
         auto e1 = pendingSockets.first();
@@ -262,7 +264,8 @@ void QHttpServer::_newConnection()
 
     // NOTE signals posted from main thread :
 
-    ASSERT_THREADS_DIFFERENT(QThread::currentThread(), thread());
+    // trivial
+    //ASSERT_THREADS_MATCH(QThread::currentThread(), thread());
 
     qDebug() << "QHttpServer . _newConnection";
 
@@ -283,7 +286,8 @@ void QHttpServer::slot_listen(QString const & _address, quint16 port) {
 
     Q_ASSERT(!m_tcpServer);
 
-    ASSERT_THREADS_MATCH(QThread::currentThread(), thread());
+    // trivial
+    //ASSERT_THREADS_MATCH(QThread::currentThread(), thread());
 
     m_tcpServer = new QMtTcpServer(this, m_maxThreads, m_maxConnsPerThread, m_maxPendingConnections);
 

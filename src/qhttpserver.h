@@ -197,7 +197,8 @@ public:
     QTcpClientPeerThread(QMtTcpServer *parent, int max) : parent(parent), max(max), connections(0) {
     }
     inline bool add(QTcpSocketL * socket) {
-        ASSERT_THREADS_DIFFERENT(QThread::currentThread(), parent->thread());
+        // trivial
+        // ASSERT_THREADS_MATCH(QThread::currentThread(), parent->thread());
 
         if (connections < max) {
             ++connections;
