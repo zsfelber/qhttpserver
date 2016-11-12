@@ -62,6 +62,7 @@ private Q_SLOTS:
 
 private:
     static int MessageBegin(http_parser *parser);
+    static int Protocol(http_parser *parser, const char *at, size_t length);
     static int Url(http_parser *parser, const char *at, size_t length);
     static int HeaderField(http_parser *parser, const char *at, size_t length);
     static int HeaderValue(http_parser *parser, const char *at, size_t length);
@@ -78,6 +79,7 @@ private:
     QHttpRequest *m_request;
     QHttpResponse *m_response;
 
+    QString m_protocol;
     QByteArray m_currentUrl;
     // The ones we are reading in from the parser
     HeaderHash m_currentHeaders;

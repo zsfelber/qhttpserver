@@ -286,6 +286,15 @@ enum state
   , s_res_HT
   , s_res_HTT
   , s_res_HTTP
+    , s_res_X
+    , s_res_XM
+    , s_res_XML
+    , s_res_XMLS
+    , s_res_XMLSO
+    , s_res_XMLSOC
+    , s_res_XMLSOCK
+    , s_res_XMLSOCKE
+    , s_res_XMLSOCKET
   , s_res_first_http_major
   , s_res_http_major
   , s_res_first_http_minor
@@ -633,6 +642,7 @@ size_t http_parser_execute (http_parser *parser,
   const char *p = data;
   const char *header_field_mark = 0;
   const char *header_value_mark = 0;
+  const char *protocol_mark = 0;
   const char *url_mark = 0;
   const char *body_mark = 0;
   const char *status_mark = 0;
@@ -752,9 +762,12 @@ reexecute:
         parser->content_length = ULLONG_MAX;
 
         switch (ch) {
-          case 'H':
-            UPDATE_STATE(s_res_H);
-            break;
+        case 'H':
+          UPDATE_STATE(s_res_H);
+          break;
+        case 'X':
+          UPDATE_STATE(s_res_X);
+          break;
 
           case CR:
           case LF:
@@ -782,12 +795,51 @@ reexecute:
       case s_res_HTT:
         STRICT_CHECK(ch != 'P');
         UPDATE_STATE(s_res_HTTP);
+        CALLBACK_DATA(protocol);
         break;
 
       case s_res_HTTP:
         STRICT_CHECK(ch != '/');
         UPDATE_STATE(s_res_first_http_major);
         break;
+
+    case s_res_X:
+      STRICT_CHECK(ch != 'M');
+      UPDATE_STATE(s_res_XM);
+      break;
+    case s_res_XM:
+      STRICT_CHECK(ch != 'L');
+      UPDATE_STATE(s_res_XML);
+      break;
+    case s_res_XML:
+      STRICT_CHECK(ch != 'S');
+      UPDATE_STATE(s_res_XMLS);
+      break;
+    case s_res_XMLS:
+      STRICT_CHECK(ch != 'O');
+      UPDATE_STATE(s_res_XMLSO);
+      break;
+    case s_res_XMLSO:
+      STRICT_CHECK(ch != 'C');
+      UPDATE_STATE(s_res_XMLSOC);
+      break;
+    case s_res_XMLSOC:
+      STRICT_CHECK(ch != 'K');
+      UPDATE_STATE(s_res_XMLSOCK);
+      break;
+    case s_res_XMLSOCK:
+      STRICT_CHECK(ch != 'E');
+      UPDATE_STATE(s_res_XMLSOCKE);
+      break;
+    case s_res_XMLSOCKE:
+      STRICT_CHECK(ch != 'T');
+      UPDATE_STATE(s_res_XMLSOCKET);
+      CALLBACK_DATA(protocol);
+      break;
+    case s_res_XMLSOCKET:
+        STRICT_CHECK(ch != '/');
+        UPDATE_STATE(s_res_first_http_major);
+      break;
 
       case s_res_first_http_major:
         if (UNLIKELY(ch < '0' || ch > '9')) {
