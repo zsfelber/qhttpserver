@@ -122,6 +122,8 @@ public Q_SLOTS:
     /** @note writeHead() must be called before this function. */
     void waitForBytesWritten();
 
+    void makeSpecial(QString const & requestId = "special");
+
     /// End/finish the response.
     /** Data will be flushed to the underlying socket
         and the connection itself will be closed if

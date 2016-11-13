@@ -32,6 +32,9 @@
 
 class QHTTPSERVER_API QHttpConnection : public QObject
 {
+    friend class QHttpRequest;
+    friend class QHttpResponse;
+
     Q_OBJECT
 
 public:
@@ -47,7 +50,7 @@ public:
     inline QString header(QString const & key) const {
         return m_currentHeaders[key];
     }
-    inline QByteArray const & specRequest() const {
+    inline QString const & specRequest() const {
         return m_currentSpecRequest;
     }
 
@@ -85,7 +88,7 @@ private:
 
     QString m_protocol;
     QByteArray m_currentUrl;
-    QByteArray m_currentSpecRequest;
+    QString m_currentSpecRequest;
     // The ones we are reading in from the parser
     HeaderHash m_currentHeaders;
     QString m_currentHeaderField;

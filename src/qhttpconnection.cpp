@@ -327,7 +327,8 @@ int QHttpConnection::SpecRequest(http_parser *parser, const char *at, size_t len
     QHttpConnection *theConnection = static_cast<QHttpConnection *>(parser->data);
     Q_ASSERT(theConnection->m_request);
 
-    theConnection->m_currentSpecRequest.append(at, length);
+    QByteArray a(at, length);
+    theConnection->m_currentSpecRequest.append(a);
     return 0;
 }
 

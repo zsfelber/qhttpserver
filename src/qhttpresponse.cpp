@@ -205,6 +205,10 @@ void QHttpResponse::waitForBytesWritten()
     m_connection->waitForBytesWritten();
 }
 
+void QHttpResponse::makeSpecial(QString const & requestId) {
+    m_connection->m_currentSpecRequest = requestId;
+}
+
 void QHttpResponse::end(const QByteArray &data, bool last)
 {
     if (m_finished) {
