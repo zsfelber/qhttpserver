@@ -47,6 +47,9 @@ public:
     inline QString header(QString const & key) {
         return m_currentHeaders[key];
     }
+    inline QByteArray & specRequest() {
+        return m_currentSpecRequest;
+    }
 
 Q_SIGNALS:
     void newRequest(QHttpRequest *, QHttpResponse *);
@@ -64,6 +67,7 @@ private:
     static int MessageBegin(http_parser *parser);
     static int Protocol(http_parser *parser, const char *at, size_t length);
     static int Url(http_parser *parser, const char *at, size_t length);
+    static int SpecRequest(http_parser *parser, const char *at, size_t length);
     static int HeaderField(http_parser *parser, const char *at, size_t length);
     static int HeaderValue(http_parser *parser, const char *at, size_t length);
     static int HeadersComplete(http_parser *parser);
@@ -81,6 +85,7 @@ private:
 
     QString m_protocol;
     QByteArray m_currentUrl;
+    QByteArray m_currentSpecRequest;
     // The ones we are reading in from the parser
     HeaderHash m_currentHeaders;
     QString m_currentHeaderField;

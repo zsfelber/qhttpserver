@@ -118,11 +118,13 @@ typedef int (*http_cb) (http_parser*);
   XX(24, PATCH,       PATCH)        \
   XX(25, PURGE,       PURGE)        \
   /* CalDAV */                      \
-  XX(26, MKCALENDAR,  MKCALENDAR)   \
+    XX(26, MKCALENDAR,  MKCALENDAR)   \
+    XX2(27, XMLSOCK_, POLICY,  POLICY)   \
 
 enum http_method
   {
 #define XX(num, name, string) HTTP_##name = num,
+#define XX2(num, prot, name, string) prot##name = num,
   HTTP_METHOD_MAP(XX)
 #undef XX
   };
@@ -155,6 +157,7 @@ enum flags
   XX(CB_message_begin, "the on_message_begin callback failed")       \
     XX(CB_protocol, "the on_protocol callback failed")                           \
     XX(CB_url, "the on_url callback failed")                           \
+    XX(CB_spec_request, "the on_spec_request callback failed")                           \
   XX(CB_header_field, "the on_header_field callback failed")         \
   XX(CB_header_value, "the on_header_value callback failed")         \
   XX(CB_headers_complete, "the on_headers_complete callback failed") \
@@ -238,6 +241,7 @@ struct http_parser_settings {
   http_cb      on_message_begin;
   http_data_cb on_protocol;
   http_data_cb on_url;
+  http_data_cb on_spec_request;
   http_data_cb on_status;
   http_data_cb on_header_field;
   http_data_cb on_header_value;

@@ -59,6 +59,7 @@ QHttpConnection::QHttpConnection(QHttpServer *parent, QTcpSocket *socket)
     m_parserSettings->on_message_begin = MessageBegin;
     m_parserSettings->on_protocol = Protocol;
     m_parserSettings->on_url = Url;
+    m_parserSettings->on_spec_request = SpecRequest;
     m_parserSettings->on_header_field = HeaderField;
     m_parserSettings->on_header_value = HeaderValue;
     m_parserSettings->on_headers_complete = HeadersComplete;
@@ -318,6 +319,15 @@ int QHttpConnection::Url(http_parser *parser, const char *at, size_t length)
     Q_ASSERT(theConnection->m_request);
 
     theConnection->m_currentUrl.append(at, length);
+    return 0;
+}
+
+int QHttpConnection::SpecRequest(http_parser *parser, const char *at, size_t length)
+{
+    QHttpConnection *theConnection = static_cast<QHttpConnection *>(parser->data);
+    Q_ASSERT(theConnection->m_request);
+
+    theConnection->m_currentSpecRequest.append(at, length);
     return 0;
 }
 

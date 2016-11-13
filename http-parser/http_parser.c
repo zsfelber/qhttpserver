@@ -173,7 +173,8 @@ do {                                                                 \
 
 static const char *method_strings[] =
   {
-#define XX(num, name, string) #string,
+    #define XX(num, name, string) #string,
+    #define XX2(ptot, num, name, string) #string,
   HTTP_METHOD_MAP(XX)
 #undef XX
   };
@@ -644,6 +645,7 @@ size_t http_parser_execute (http_parser *parser,
   const char *header_value_mark = 0;
   const char *protocol_mark = 0;
   const char *url_mark = 0;
+  const char *spec_request_mark = 0;
   const char *body_mark = 0;
   const char *status_mark = 0;
   enum state p_state = (enum state) parser->state;
@@ -1001,7 +1003,7 @@ reexecute:
         parser->flags = 0;
         parser->content_length = ULLONG_MAX;
 
-        if (UNLIKELY(!IS_ALPHA(ch))) {
+        if (UNLIKELY(!IS_ALPHA(ch)) && ch!='<') {
           SET_ERRNO(HPE_INVALID_METHOD);
           goto error;
         }
@@ -1024,6 +1026,8 @@ reexecute:
           case 'S': parser->method = HTTP_SUBSCRIBE; /* or SEARCH */ break;
           case 'T': parser->method = HTTP_TRACE; break;
           case 'U': parser->method = HTTP_UNLOCK; /* or UNSUBSCRIBE */ break;
+        case '<': parser->method = XMLSOCK_POLICY; /*flash <policy-file-request/>...*/ break;
+                 url_mark = data;
           default:
             SET_ERRNO(HPE_INVALID_METHOD);
             goto error;
@@ -1038,15 +1042,25 @@ reexecute:
       case s_req_method:
       {
         const char *matcher;
-        if (UNLIKELY(ch == '\0')) {
-          SET_ERRNO(HPE_INVALID_METHOD);
-          goto error;
+        if (parser->method != XMLSOCK_POLICY) {
+            if (UNLIKELY(ch == '\0')) {
+              SET_ERRNO(HPE_INVALID_METHOD);
+              goto error;
+            }
         }
 
         matcher = method_strings[parser->method];
+        if (parser->method == XMLSOCK_POLICY) {
+            matcher = "<policy-file-request/>";
+        }
         if (ch == ' ' && matcher[parser->index] == '\0') {
-          UPDATE_STATE(s_req_spaces_before_url);
+            UPDATE_STATE(s_req_spaces_before_url);
         } else if (ch == matcher[parser->index]) {
+            if (ch=='\0' && parser->method == XMLSOCK_POLICY) {
+                CALLBACK_DATA_NOADVANCE(spec_request);
+                UPDATE_STATE(s_headers_done);
+                settings->on_headers_complete(parser);
+            }
           ; /* nada */
         } else if (parser->method == HTTP_CONNECT) {
           if (parser->index == 1 && ch == 'H') {
@@ -1115,7 +1129,6 @@ reexecute:
           SET_ERRNO(HPE_INVALID_METHOD);
           goto error;
         }
-
         ++parser->index;
         break;
       }

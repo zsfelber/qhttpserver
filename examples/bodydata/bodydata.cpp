@@ -19,7 +19,7 @@ BodyData::BodyData()
     connect(server, SIGNAL(newRequest(QHttpRequest*, QHttpResponse*)),
         this, SLOT(handleRequest(QHttpRequest*, QHttpResponse*)), Qt::DirectConnection);
         
-    server->listen(QHostAddress::Any, 8080);
+    server->listen(QHostAddress::Any, 6789);
 }
 
 void BodyData::handleRequest(QHttpRequest *req, QHttpResponse *resp)
