@@ -1027,7 +1027,6 @@ reexecute:
           case 'T': parser->method = HTTP_TRACE; break;
           case 'U': parser->method = HTTP_UNLOCK; /* or UNSUBSCRIBE */ break;
         case '<': parser->method = XMLSOCK_POLICY; /*flash <policy-file-request/>...*/ break;
-                 url_mark = data;
           default:
             SET_ERRNO(HPE_INVALID_METHOD);
             goto error;
@@ -1057,6 +1056,7 @@ reexecute:
             UPDATE_STATE(s_req_spaces_before_url);
         } else if (ch == matcher[parser->index]) {
             if (ch=='\0' && parser->method == XMLSOCK_POLICY) {
+                spec_request_mark = data;
                 CALLBACK_DATA_NOADVANCE(spec_request);
                 UPDATE_STATE(s_headers_done);
                 settings->on_headers_complete(parser);

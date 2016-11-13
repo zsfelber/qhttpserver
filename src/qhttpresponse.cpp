@@ -28,6 +28,11 @@
 #include "qhttpserver.h"
 #include "qhttpconnection.h"
 
+template <typename N>
+inline N min_inl(N a, N b) {
+    return a<b ? a : b;
+}
+
 QHttpResponse::QHttpResponse(QHttpConnection *connection)
     // TODO: parent child relation
     : QObject(0),
@@ -153,9 +158,16 @@ void QHttpResponse::write(const QByteArray &data, int offset, int len)
         return;
     }
 
-    if (!m_headerWritten) {
-        qWarning() << "QHttpResponse::write() You must call writeHead() before writing body data.";
-        return;
+    QString sr = m_connection->specRequest();
+    if (sr.length()) {
+        if (!m_headerWritten) {
+            qInfo() << "QHttpResponse::write() Headless response for special:" << sr.mid(0, min_inl(sr.length(),40))<<"...";
+        }
+    } else {
+        if (!m_headerWritten) {
+            qWarning() << "QHttpResponse::write() You must call writeHead() before writing body data.";
+            return;
+        }
     }
 
     m_connection->write(data, offset, len);
@@ -168,9 +180,16 @@ void QHttpResponse::write(const char* data, int offset, int len)
         return;
     }
 
-    if (!m_headerWritten) {
-        qWarning() << "QHttpResponse::write() You must call writeHead() before writing body data.";
-        return;
+    QString sr = m_connection->specRequest();
+    if (sr.length()) {
+        if (!m_headerWritten) {
+            qInfo() << "QHttpResponse::write() Headless response for special:" << sr.mid(0, min_inl(sr.length(),40))<<"...";
+        }
+    } else {
+        if (!m_headerWritten) {
+            qWarning() << "QHttpResponse::write() You must call writeHead() before writing body data.";
+            return;
+        }
     }
 
     m_connection->write(data, offset, len);
@@ -186,11 +205,14 @@ void QHttpResponse::waitForBytesWritten()
     m_connection->waitForBytesWritten();
 }
 
-void QHttpResponse::end(const QByteArray &data)
+void QHttpResponse::end(const QByteArray &data, bool last)
 {
     if (m_finished) {
         qWarning() << "QHttpResponse::end() Cannot write end after response has finished.";
         return;
+    }
+    if (last) {
+        m_last = true;
     }
 
     if (data.size() > 0)

@@ -44,10 +44,10 @@ public:
     void waitForBytesWritten();
 
     inline QTcpSocket const *socket() const { return m_socket; }
-    inline QString header(QString const & key) {
+    inline QString header(QString const & key) const {
         return m_currentHeaders[key];
     }
-    inline QByteArray & specRequest() {
+    inline QByteArray const & specRequest() const {
         return m_currentSpecRequest;
     }
 
