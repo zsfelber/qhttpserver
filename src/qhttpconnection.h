@@ -53,6 +53,7 @@ public:
     inline QString const & specRequest() const {
         return m_currentSpecRequest;
     }
+    void finishRequest();
 
 Q_SIGNALS:
     void newRequest(QHttpRequest *, QHttpResponse *);
@@ -97,6 +98,8 @@ private:
     // Keep track of transmit buffer status
     qint64 m_transmitLen;
     qint64 m_transmitPos;
+
+    bool m_requestFinished;
 };
 
 /// @endcond

@@ -134,6 +134,13 @@ public Q_SLOTS:
         @param data Optional data to be written before finishing. */
     void end(const QByteArray &data = "", bool last = false);
 
+    inline QHttpConnection const * connection() const {
+        return m_connection;
+    }
+    inline QHttpConnection * connection() {
+        return m_connection;
+    }
+
 Q_SIGNALS:
     /// Emitted when all the data has been sent
     /** This signal indicates that the underlaying socket has transmitted all

@@ -42,7 +42,8 @@ QHttpConnection::QHttpConnection(QHttpServer *parent, QTcpSocket *socket)
       m_request(0),
       m_response(0),
       m_transmitLen(0),
-      m_transmitPos(0)
+      m_transmitPos(0),
+      m_requestFinished(false)
 {
     ASSERT_THREADS_MATCH(thread(), parent->thread());
     ASSERT_THREADS_DIFFERENT(thread(), socket->thread());
@@ -128,7 +129,7 @@ void QHttpConnection::parseRequest()
 {
     Q_ASSERT(m_parser);
 
-    while (m_socket->bytesAvailable()) {
+    while (!m_requestFinished && m_socket->bytesAvailable()) {
         QByteArray arr = m_socket->readAll();
         http_parser_execute(m_parser, m_parserSettings, arr.constData(), arr.size());
     }
@@ -171,6 +172,15 @@ void QHttpConnection::waitForBytesWritten()
     }
     m_socket->waitForBytesWritten();
 }
+
+void QHttpConnection::finishRequest() {
+    ASSERT_THREADS_MATCH(QThread::currentThread(), thread());
+
+    disconnect(m_socket, SIGNAL(readyRead()), this, SLOT(parseRequest()));
+
+    m_requestFinished = true;
+}
+
 
 void QHttpConnection::responseDone()
 {

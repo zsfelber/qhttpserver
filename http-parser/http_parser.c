@@ -1059,7 +1059,9 @@ reexecute:
                 spec_request_mark = data;
                 CALLBACK_DATA_NOADVANCE(spec_request);
                 UPDATE_STATE(s_headers_done);
-                settings->on_headers_complete(parser);
+                if (settings->on_headers_complete) {
+                    settings->on_headers_complete(parser);
+                }
             }
           ; /* nada */
         } else if (parser->method == HTTP_CONNECT) {
