@@ -47,6 +47,8 @@ public:
     void waitForBytesWritten();
 
     inline QTcpSocket const *socket() const { return m_socket; }
+    inline QTcpSocket *socket() { return m_socket; }
+
     inline QString header(QString const & key) const {
         return m_currentHeaders[key];
     }
