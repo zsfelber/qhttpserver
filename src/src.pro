@@ -25,8 +25,37 @@ PRIVATE_HEADERS += $$QHTTPSERVER_BASE/http-parser/http_parser.h qhttpconnection.
 PUBLIC_HEADERS += qhttpserver.h qhttprequest.h qhttpresponse.h qhttpserverapi.h qhttpserverfwd.h
 
 HEADERS = $$PRIVATE_HEADERS $$PUBLIC_HEADERS \
-    safequeue.h
-SOURCES = *.cpp $$QHTTPSERVER_BASE/http-parser/http_parser.c
+    safequeue.h \
+    websockets/qdefaultmaskgenerator_p.h \
+    websockets/qmaskgenerator.h \
+    websockets/qsslserver_p.h \
+    websockets/qwebsocket.h \
+    websockets/qwebsocket_p.h \
+    websockets/qwebsocketcorsauthenticator.h \
+    websockets/qwebsocketcorsauthenticator_p.h \
+    websockets/qwebsocketdataprocessor_p.h \
+    websockets/qwebsocketframe_p.h \
+    websockets/qwebsockethandshakerequest_p.h \
+    websockets/qwebsockethandshakeresponse_p.h \
+    websockets/qwebsocketprotocol.h \
+    websockets/qwebsocketprotocol_p.h \
+    websockets/qwebsockets_global.h \
+    websockets/qwebsocketserver.h \
+    websockets/qwebsocketserver_p.h
+SOURCES = *.cpp $$QHTTPSERVER_BASE/http-parser/http_parser.c \
+    websockets/qdefaultmaskgenerator_p.cpp \
+    websockets/qmaskgenerator.cpp \
+    websockets/qsslserver.cpp \
+    websockets/qwebsocket.cpp \
+    websockets/qwebsocket_p.cpp \
+    websockets/qwebsocketcorsauthenticator.cpp \
+    websockets/qwebsocketdataprocessor.cpp \
+    websockets/qwebsocketframe.cpp \
+    websockets/qwebsockethandshakerequest.cpp \
+    websockets/qwebsockethandshakeresponse.cpp \
+    websockets/qwebsocketprotocol.cpp \
+    websockets/qwebsocketserver.cpp \
+    websockets/qwebsocketserver_p.cpp
 
 OBJECTS_DIR = $$QHTTPSERVER_BASE/build
 MOC_DIR = $$QHTTPSERVER_BASE/build
